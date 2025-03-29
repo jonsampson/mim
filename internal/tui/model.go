@@ -7,8 +7,14 @@ import (
     "github.com/jonsampson/mim/internal/infra"
 )
 
+// metricsCollector is a private interface that defines the behavior we expect from a metrics collector
+type metricsCollector interface {
+    Start()
+    Stop()
+    Metrics() <-chan infra.SystemMetrics
+}
 type Model struct {
-    metricsCollector *infra.MetricsCollector
+    metricsCollector metricsCollector // Changed from *infra.MetricsCollector to the interface
     cpuUsage         float64
     memoryUsage      float64
     gpuUsage         float64
