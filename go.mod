@@ -9,6 +9,7 @@ require (
 )
 
 require (
+	github.com/NVIDIA/go-nvml v0.12.4-1
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/lipgloss v1.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect

@@ -4,62 +4,70 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jonsampson/mim/internal/infra"
+	"github.com/jonsampson/mim/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInitialModel(t *testing.T) {
-	model := InitialModel()
-	assert.NotNil(t, model.metricsCollector)
-	assert.Equal(t, 0.0, model.cpuUsage)
-	assert.Equal(t, 0.0, model.memoryUsage)
-	assert.Equal(t, 0.0, model.gpuUsage)
-}
-
 func TestModelUpdate(t *testing.T) {
-    mockCollector := &MockMetricsCollector{
-        metricsChan: make(chan infra.SystemMetrics, 1),
-    }
-    mockCollector.On("Start").Return()
-    mockCollector.On("Stop").Return()
+	mockCPUMemCollector := new(MockMetricsCollector[domain.CPUMemoryMetrics])
+	mockGPUCollector := new(MockMetricsCollector[domain.GPUMetrics])
 
-    model := Model{
-        metricsCollector: mockCollector,
-    }
+	model := Model{
+		cpuMemoryCollector: mockCPUMemCollector,
+		gpuCollector:       mockGPUCollector,
+	}
 
-    t.Run("Quit on 'q' key press", func(t *testing.T) {
-        updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
-        assert.Equal(t, model, updatedModel) // Check that the model hasn't changed
-        assert.Equal(t, tea.Quit, cmd())
-        mockCollector.AssertCalled(t, "Stop")
-    })
+	t.Run("Update with CPU/Memory metrics", func(t *testing.T) {
+		cpuMemMetrics := domain.CPUMemoryMetrics{
+			CPUUsage:    []float64{50.0, 60.0},
+			MemoryUsage: 70.0,
+		}
 
-    t.Run("Update metrics", func(t *testing.T) {
-        metrics := infra.SystemMetrics{
-            CPUUsage:    50.0,
-            MemoryUsage: 60.0,
-        }
-        mockCollector.metricsChan <- metrics
+		updatedModel, cmd := model.Update(cpuMemMetrics)
+		assert.Equal(t, cpuMemMetrics.CPUUsage, updatedModel.(Model).cpuUsage)
+		assert.Equal(t, cpuMemMetrics.MemoryUsage, updatedModel.(Model).memoryUsage)
+		assert.Nil(t, cmd)
+	})
 
-        newModel, cmd := model.Update(<-mockCollector.metricsChan)
-        updatedModel, ok := newModel.(Model)
-        assert.True(t, ok)
-        assert.Equal(t, 50.0, updatedModel.cpuUsage)
-        assert.Equal(t, 60.0, updatedModel.memoryUsage)
-        assert.NotNil(t, cmd)
-    })
+	t.Run("Update with GPU metrics", func(t *testing.T) {
+		gpuMetrics := domain.GPUMetrics{
+			GPUUsage:       80.0,
+			GPUMemoryUsage: 90.0,
+		}
+
+		updatedModel, cmd := model.Update(gpuMetrics)
+		assert.Equal(t, gpuMetrics.GPUUsage, updatedModel.(Model).gpuUsage)
+		assert.Equal(t, gpuMetrics.GPUMemoryUsage, updatedModel.(Model).gpuMemoryUsage)
+		assert.Nil(t, cmd)
+	})
+
+	t.Run("Update with quit message", func(t *testing.T) {
+		mockCPUMemCollector.On("Stop").Once()
+		mockGPUCollector.On("Stop").Once()
+
+		_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+		assert.NotNil(t, cmd)
+		expectedResult := tea.Quit()
+		actualResult := cmd()
+		assert.Equal(t, expectedResult, actualResult)
+
+		mockCPUMemCollector.AssertExpectations(t)
+		mockGPUCollector.AssertExpectations(t)
+	})
 }
 
 func TestModelView(t *testing.T) {
 	model := Model{
-		cpuUsage:    30.5,
-		memoryUsage: 45.7,
-		gpuUsage:    0.0,
+		cpuUsage:       []float64{50.0, 60.0},
+		memoryUsage:    70.0,
+		gpuUsage:       80.0,
+		gpuMemoryUsage: 90.0,
 	}
 
 	view := model.View()
-	assert.Contains(t, view, "CPU Usage: 30.50%")
-	assert.Contains(t, view, "Memory Usage: 45.70%")
-	assert.Contains(t, view, "GPU Usage: 0.00%")
+	assert.Contains(t, view, "CPU Usage: Core 0: 50.00% Core 1: 60.00%")
+	assert.Contains(t, view, "Memory Usage: 70.00%")
+	assert.Contains(t, view, "GPU Usage: 80.00%")
+	assert.Contains(t, view, "GPU Memory Usage: 90.00%")
 	assert.Contains(t, view, "Press q to quit")
 }

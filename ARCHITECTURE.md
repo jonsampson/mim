@@ -56,11 +56,23 @@ Mim will follow **Clean Architecture** principles to ensure modularity and testa
   - Mocks will be placed in a `mocks.go` file within each relevant package.
   - Unit tests will use mocks to isolate components.
 
-## Next Steps
-1. Define the initial **static UI layout** (grid structure for CPU, GPU, and memory monitoring).
-2. Implement the **data collection pipeline** using `gopsutil`, `nvml`, and `go_amd_smi`.
-3. Set up **Go channels** for efficient data updates.
-4. Develop a **basic Bubble Tea prototype** displaying sample data.
+## Future Considerations
 
-This document will evolve as we refine the architecture and implementation details.
+### AMD GPU Metrics Collection
+
+While the current implementation focuses on CPU, Memory, and NVIDIA GPU metrics, we've identified the need to support AMD GPU metrics in the future. The integration of the `goamdsmi` library for AMD GPU metrics collection has presented some challenges:
+
+1. Compatibility issues with the current project structure.
+2. Potential complexities in cross-platform support.
+3. Need for more extensive testing on systems with AMD GPUs.
+
+As a result, we've decided to postpone the implementation of AMD GPU metrics collection. This feature will be revisited in future iterations of the project. When implementing, consider the following:
+
+- Ensure proper error handling for systems without AMD GPUs.
+- Implement a fallback mechanism for generic GPU information if specific AMD metrics are unavailable.
+- Consider creating a more generic GPU interface that can be implemented by both NVIDIA and AMD collectors.
+
+TODO: Revisit AMD GPU metrics collection implementation using `goamdsmi` or alternative libraries.
+
+## Next Steps
 
