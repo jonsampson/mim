@@ -68,7 +68,6 @@ func TestModelView(t *testing.T) {
     view := model.View()
 
     assert.Contains(t, view, "CPU Usage")
-    assert.Contains(t, view, "Total CPU Usage: 15.00%")
     assert.Contains(t, view, "Memory Usage: 50.00%")
     assert.Contains(t, view, "GPU Usage: 70.00%")
     assert.Contains(t, view, "GPU Memory Usage: 80.00%")

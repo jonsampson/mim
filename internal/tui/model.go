@@ -17,6 +17,7 @@ type metricsCollector[T any] interface {
 
 type Model struct {
 	cpuHeatmap         *CPUHeatmap
+    cpuUsageSparkline  *CPUUsageSparkline
 	cpuMemoryMetrics   domain.CPUMemoryMetrics
 	cpuMemoryCollector metricsCollector[domain.CPUMemoryMetrics]
 	gpuCollector       metricsCollector[domain.GPUMetrics]
@@ -98,6 +99,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cpuHeatmap = NewCPUHeatmap(len(m.cpuUsagePerCore))
 		}
 		m.cpuHeatmap.Update(msg)
+
+        // Initialize or update the CPU usage sparkline
+        if m.cpuUsageSparkline == nil {
+            m.cpuUsageSparkline = NewCPUUsageSparkline(20, 3)
+        }
+        m.cpuUsageSparkline.Update(msg)
 		cmd = listenForMetrics(m.cpuMemoryCollector.Metrics())
 
 	case domain.GPUMetrics:
@@ -115,11 +122,15 @@ func (m Model) View() string {
 	if m.cpuHeatmap != nil {
 		cpuHeatmapView = m.cpuHeatmap.View()
 	}
+    cpuUsageSparklineView := "CPU Usage Sparkline initializing..."
+    if m.cpuUsageSparkline != nil {
+        cpuUsageSparklineView = m.cpuUsageSparkline.View()
+    }
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		"CPU Usage",
+        cpuUsageSparklineView,
+        fmt.Sprintf("CPU Heatmap (%d cores)", len(m.cpuUsagePerCore)),
 		cpuHeatmapView,
-		fmt.Sprintf("Total CPU Usage: %.2f%%", m.cpuUsageTotal),
 		fmt.Sprintf("Memory Usage: %.2f%%", m.memoryUsage),
 		fmt.Sprintf("GPU Usage: %.2f%%", m.gpuUsage),
 		fmt.Sprintf("GPU Memory Usage: %.2f%%", m.gpuMemoryUsage),
