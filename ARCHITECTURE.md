@@ -76,3 +76,79 @@ TODO: Revisit AMD GPU metrics collection implementation using `goamdsmi` or alte
 
 ## Next Steps
 
+1) Define the initial static UI layout (grid structure for CPU, GPU, and memory monitoring).
+
+Here's the proposed layout for the initial static UI:
+
+```
++----------------------------------+----------------------------------+
+|             CPU Usage            |           Memory Usage           |
+|                                  |                                  |
+| [Aggregate CPU Usage Bar/Graph]  | [System Memory Usage Bar/Graph]  |
+|                                  |                                  |
+| [CPU Core Heatmap]               | [Memory Usage Details]           |
+| (Showing all cores as color-     | - Total:                         |
+|  coded squares, with color       | - Used:                          |
+|  intensity representing usage)   | - Free:                          |
+|                                  | - Cached:                        |
+| Top 5 Busiest Cores:             |                                  |
+| Core 7:  [===========]  90%      | [Swap Usage Bar/Graph]           |
+| Core 12: [==========]   85%      | - Total:                         |
+| Core 3:  [=========]    80%      | - Used:                          |
+| Core 18: [========]     75%      | - Free:                          |
+| Core 1:  [=======]      70%      |                                  |
++----------------------------------+----------------------------------+
+|             GPU Usage            |         Process Monitor          |
+|                                  |                                  |
+| [GPU Usage Bar/Graph]            | [Top Processes Table]            |
+|                                  |                                  |
+| [GPU Memory Usage Bar/Graph]     | PID  CPU%  MEM%  Command         |
+|                                  | 1234  25.0  10.2  process1       |
+| GPU Details:                     | 5678  15.5   8.7  process2       |
+| - Model:                         | 9012  10.2   5.3  process3       |
+| - Temperature:                   | 3456   8.7   4.1  process4       |
+| - Fan Speed:                     | 7890   7.3   3.8  process5       |
+| - Power Usage:                   |                                  |
++----------------------------------+----------------------------------+
+```
+
+Implementation Notes:
+
+a) CPU Usage Section:
+   - Implement a custom Bubble Tea component for the CPU Core Heatmap.
+   - Use a grid of colored blocks, where each block represents a core and its color intensity represents usage.
+   - Implement a sorting mechanism to identify and display the top 5 busiest cores.
+
+b) Memory Usage Section:
+   - Use Bubble Tea's built-in components or create custom ones for the memory usage bar graphs.
+   - Implement a table or list component for displaying memory usage details.
+
+c) GPU Usage Section:
+   - Similar to the Memory Usage section, use bar graphs for GPU usage and memory.
+   - Implement a table or list component for GPU details.
+
+d) Process Monitor Section:
+   - Implement a sortable table component to display process information.
+
+e) Overall Layout:
+   - Use Bubble Tea's layout components (or create custom ones) to divide the screen into four main sections.
+   - Ensure that each section can be updated independently for better performance.
+
+2) Develop a basic Bubble Tea prototype displaying sample data.
+   - Start by implementing the overall layout structure.
+   - Add placeholder components for each section.
+   - Gradually replace placeholders with functional components, starting with CPU usage.
+
+3) Integrate real-time data collection:
+   - Implement data collection routines using gopsutil and nvml.
+   - Set up Go channels to pass system metrics updates to the Bubble Tea event loop.
+
+4) Refine UI components:
+   - Implement interactive features (e.g., sorting processes, focusing on specific CPU cores).
+   - Add color schemes and styling to improve readability and visual appeal.
+
+5) Optimize performance:
+   - Ensure smooth updates even with rapidly changing data.
+   - Implement efficient rendering techniques, especially for the CPU Core Heatmap.
+
+This document will continue to evolve as we refine the architecture and implementation details.
