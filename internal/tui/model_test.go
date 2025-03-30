@@ -57,21 +57,22 @@ func TestModelUpdate(t *testing.T) {
 }
 
 func TestModelView(t *testing.T) {
-	model := Model{
-		cpuUsagePerCore: []float64{10.0, 20.0},
-		cpuUsageTotal:   15.0,
-		memoryUsage:     50.0,
-		gpuUsage:        70.0,
-		gpuMemoryUsage:  80.0,
-	}
+    model := Model{
+        cpuUsagePerCore: []float64{10.0, 20.0},
+        cpuUsageTotal:   15.0,
+        memoryUsage:     50.0,
+        gpuUsage:        70.0,
+        gpuMemoryUsage:  80.0,
+    }
 
-	view := model.View()
+    view := model.View()
 
-	assert.Contains(t, view, "CPU Usage (total): 15.00%")
-	assert.Contains(t, view, "CPU Usage: Core 0: 10.00% Core 1: 20.00%")
-	assert.Contains(t, view, "Memory Usage: 50.00%")
-	assert.Contains(t, view, "GPU Usage: 70.00%")
-	assert.Contains(t, view, "GPU Memory Usage: 80.00%")
+    assert.Contains(t, view, "CPU Usage")
+    assert.Contains(t, view, "Total CPU Usage: 15.00%")
+    assert.Contains(t, view, "Memory Usage: 50.00%")
+    assert.Contains(t, view, "GPU Usage: 70.00%")
+    assert.Contains(t, view, "GPU Memory Usage: 80.00%")
+    assert.Contains(t, view, "Press q to quit")
 }
 
 func TestInitialModel(t *testing.T) {

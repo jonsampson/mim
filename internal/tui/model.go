@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/jonsampson/mim/internal/domain"
 )
 
@@ -15,6 +16,8 @@ type metricsCollector[T any] interface {
 }
 
 type Model struct {
+	cpuHeatmap         *CPUHeatmap
+	cpuMemoryMetrics   domain.CPUMemoryMetrics
 	cpuMemoryCollector metricsCollector[domain.CPUMemoryMetrics]
 	gpuCollector       metricsCollector[domain.GPUMetrics]
 	cpuUsagePerCore    []float64
@@ -85,9 +88,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case domain.CPUMemoryMetrics:
+		m.cpuMemoryMetrics = msg
 		m.cpuUsagePerCore = msg.CPUUsagePerCore
 		m.cpuUsageTotal = msg.CPUUsageTotal
 		m.memoryUsage = msg.MemoryUsage
+
+		// Initialize or update the CPU heatmap
+		if m.cpuHeatmap == nil {
+			m.cpuHeatmap = NewCPUHeatmap(len(m.cpuUsagePerCore))
+		}
+		m.cpuHeatmap.Update(msg)
 		cmd = listenForMetrics(m.cpuMemoryCollector.Metrics())
 
 	case domain.GPUMetrics:
@@ -100,12 +110,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	cpuUsageStr := ""
-	for i, usage := range m.cpuUsagePerCore {
-		cpuUsageStr += fmt.Sprintf("Core %d: %.2f%% ", i, usage)
+	// Combine views of all components
+	cpuHeatmapView := "CPU Heatmap initializing..."
+	if m.cpuHeatmap != nil {
+		cpuHeatmapView = m.cpuHeatmap.View()
 	}
-	return fmt.Sprintf("CPU Usage (total): %.2f%%\nCPU Usage: %s\nMemory Usage: %.2f%%\nGPU Usage: %.2f%%\nGPU Memory Usage: %.2f%%\n\nPress q to quit",
-		m.cpuUsageTotal, cpuUsageStr, m.memoryUsage, m.gpuUsage, m.gpuMemoryUsage)
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		"CPU Usage",
+		cpuHeatmapView,
+		fmt.Sprintf("Total CPU Usage: %.2f%%", m.cpuUsageTotal),
+		fmt.Sprintf("Memory Usage: %.2f%%", m.memoryUsage),
+		fmt.Sprintf("GPU Usage: %.2f%%", m.gpuUsage),
+		fmt.Sprintf("GPU Memory Usage: %.2f%%", m.gpuMemoryUsage),
+		"\nPress q to quit",
+	)
 }
 
 func listenForMetrics[T any](metrics <-chan T) tea.Cmd {

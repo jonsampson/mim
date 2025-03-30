@@ -3,9 +3,15 @@ module github.com/jonsampson/mim
 go 1.23.3
 
 require (
+	github.com/NimbleMarkets/ntcharts v0.3.1
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/stretchr/testify v1.9.0
+)
+
+require (
+	github.com/charmbracelet/bubbles v0.20.0 // indirect
+	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
 )
 
 require (
@@ -35,6 +41,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/text v0.20.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
