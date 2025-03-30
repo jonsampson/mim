@@ -19,18 +19,26 @@ func NewCPUMemoryCollector() *CPUMemoryCollector {
 }
 
 func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
-	cpuUsage, err := cpu.Percent(time.Second, true)
-	if err != nil {
-		return domain.CPUMemoryMetrics{}, err
-	}
+    // Get per-core CPU usage
+    cpuUsagePerCore, err := cpu.Percent(time.Second, true)
+    if err != nil {
+        return domain.CPUMemoryMetrics{}, err
+    }
 
-	memStat, err := mem.VirtualMemory()
-	if err != nil {
-		return domain.CPUMemoryMetrics{}, err
-	}
+    // Get total CPU usage
+    cpuUsageTotal, err := cpu.Percent(time.Second, false)
+    if err != nil {
+        return domain.CPUMemoryMetrics{}, err
+    }
 
-	return domain.CPUMemoryMetrics{
-		CPUUsage:    cpuUsage,
-		MemoryUsage: memStat.UsedPercent,
-	}, nil
+    memStat, err := mem.VirtualMemory()
+    if err != nil {
+        return domain.CPUMemoryMetrics{}, err
+    }
+
+    return domain.CPUMemoryMetrics{
+        CPUUsagePerCore: cpuUsagePerCore,
+        CPUUsageTotal:   cpuUsageTotal[0], // cpuUsageTotal is a slice with one element
+        MemoryUsage:     memStat.UsedPercent,
+    }, nil
 }

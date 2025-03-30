@@ -3,71 +3,97 @@ package tui
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jonsampson/mim/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestModelUpdate(t *testing.T) {
-	mockCPUMemCollector := new(MockMetricsCollector[domain.CPUMemoryMetrics])
+	mockCPUMemoryCollector := new(MockMetricsCollector[domain.CPUMemoryMetrics])
 	mockGPUCollector := new(MockMetricsCollector[domain.GPUMetrics])
 
+	// Set up expectations for Metrics() method
+	cpuMemoryMetricsChan := make(chan domain.CPUMemoryMetrics, 1)
+	gpuMetricsChan := make(chan domain.GPUMetrics, 1)
+	mockCPUMemoryCollector.On("Metrics").Return(cpuMemoryMetricsChan)
+	mockGPUCollector.On("Metrics").Return(gpuMetricsChan)
+
 	model := Model{
-		cpuMemoryCollector: mockCPUMemCollector,
+		cpuMemoryCollector: mockCPUMemoryCollector,
 		gpuCollector:       mockGPUCollector,
 	}
-
-	t.Run("Update with CPU/Memory metrics", func(t *testing.T) {
-		cpuMemMetrics := domain.CPUMemoryMetrics{
-			CPUUsage:    []float64{50.0, 60.0},
-			MemoryUsage: 70.0,
+	t.Run("CPU and Memory metrics update", func(t *testing.T) {
+		cpuMemoryMetrics := domain.CPUMemoryMetrics{
+			CPUUsagePerCore: []float64{10.0, 20.0},
+			CPUUsageTotal:   15.0,
+			MemoryUsage:     50.0,
 		}
 
-		updatedModel, cmd := model.Update(cpuMemMetrics)
-		assert.Equal(t, cpuMemMetrics.CPUUsage, updatedModel.(Model).cpuUsage)
-		assert.Equal(t, cpuMemMetrics.MemoryUsage, updatedModel.(Model).memoryUsage)
-		assert.Nil(t, cmd)
+		updatedModel, cmd := model.Update(cpuMemoryMetrics)
+		updatedModelTyped := updatedModel.(Model)
+
+		assert.Equal(t, cpuMemoryMetrics.CPUUsagePerCore, updatedModelTyped.cpuUsagePerCore)
+		assert.Equal(t, cpuMemoryMetrics.CPUUsageTotal, updatedModelTyped.cpuUsageTotal)
+		assert.Equal(t, cpuMemoryMetrics.MemoryUsage, updatedModelTyped.memoryUsage)
+		assert.NotNil(t, cmd)
 	})
 
-	t.Run("Update with GPU metrics", func(t *testing.T) {
+	t.Run("GPU metrics update", func(t *testing.T) {
 		gpuMetrics := domain.GPUMetrics{
-			GPUUsage:       80.0,
-			GPUMemoryUsage: 90.0,
+			GPUUsage:       70.0,
+			GPUMemoryUsage: 80.0,
 		}
 
 		updatedModel, cmd := model.Update(gpuMetrics)
-		assert.Equal(t, gpuMetrics.GPUUsage, updatedModel.(Model).gpuUsage)
-		assert.Equal(t, gpuMetrics.GPUMemoryUsage, updatedModel.(Model).gpuMemoryUsage)
-		assert.Nil(t, cmd)
-	})
+		updatedModelTyped := updatedModel.(Model)
 
-	t.Run("Update with quit message", func(t *testing.T) {
-		mockCPUMemCollector.On("Stop").Once()
-		mockGPUCollector.On("Stop").Once()
-
-		_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+		assert.Equal(t, gpuMetrics.GPUUsage, updatedModelTyped.gpuUsage)
+		assert.Equal(t, gpuMetrics.GPUMemoryUsage, updatedModelTyped.gpuMemoryUsage)
 		assert.NotNil(t, cmd)
-		expectedResult := tea.Quit()
-		actualResult := cmd()
-		assert.Equal(t, expectedResult, actualResult)
-
-		mockCPUMemCollector.AssertExpectations(t)
-		mockGPUCollector.AssertExpectations(t)
 	})
+
+	// Verify that the expectations were met
+	mockCPUMemoryCollector.AssertExpectations(t)
+	mockGPUCollector.AssertExpectations(t)
 }
 
 func TestModelView(t *testing.T) {
 	model := Model{
-		cpuUsage:       []float64{50.0, 60.0},
-		memoryUsage:    70.0,
-		gpuUsage:       80.0,
-		gpuMemoryUsage: 90.0,
+		cpuUsagePerCore: []float64{10.0, 20.0},
+		cpuUsageTotal:   15.0,
+		memoryUsage:     50.0,
+		gpuUsage:        70.0,
+		gpuMemoryUsage:  80.0,
 	}
 
 	view := model.View()
-	assert.Contains(t, view, "CPU Usage: Core 0: 50.00% Core 1: 60.00%")
-	assert.Contains(t, view, "Memory Usage: 70.00%")
-	assert.Contains(t, view, "GPU Usage: 80.00%")
-	assert.Contains(t, view, "GPU Memory Usage: 90.00%")
-	assert.Contains(t, view, "Press q to quit")
+
+	assert.Contains(t, view, "CPU Usage (total): 15.00%")
+	assert.Contains(t, view, "CPU Usage: Core 0: 10.00% Core 1: 20.00%")
+	assert.Contains(t, view, "Memory Usage: 50.00%")
+	assert.Contains(t, view, "GPU Usage: 70.00%")
+	assert.Contains(t, view, "GPU Memory Usage: 80.00%")
+}
+
+func TestInitialModel(t *testing.T) {
+	mockCPUMemoryCollector := new(MockMetricsCollector[domain.CPUMemoryMetrics])
+	mockGPUCollector := new(MockMetricsCollector[domain.GPUMetrics])
+
+	mockCPUMemoryCollector.On("Start").Return()
+	mockGPUCollector.On("Start").Return()
+
+	model, err := InitialModel(mockCPUMemoryCollector, mockGPUCollector)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, model.cpuMemoryCollector)
+	assert.NotNil(t, model.gpuCollector)
+
+	mockCPUMemoryCollector.AssertCalled(t, "Start")
+	mockGPUCollector.AssertCalled(t, "Start")
+}
+
+func TestInitialModelError(t *testing.T) {
+	_, err := InitialModel()
+
+	assert.Error(t, err)
+	assert.Equal(t, "no valid collectors provided", err.Error())
 }

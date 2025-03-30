@@ -1,5 +1,8 @@
 package infra
 
+import (
+    "github.com/NVIDIA/go-nvml/pkg/nvml"
+)
 type CollectorFactory struct{}
 
 func (f *CollectorFactory) CreateCollectors() []interface{} {
@@ -19,8 +22,18 @@ func (f *CollectorFactory) CreateCollectors() []interface{} {
 }
 
 func hasNvidiaGPU() bool {
-    // Implementation to detect NVIDIA GPU
-    return false
+    ret := nvml.Init()
+    if ret != nvml.SUCCESS {
+        return false
+    }
+    defer nvml.Shutdown()
+
+    count, ret := nvml.DeviceGetCount()
+    if ret != nvml.SUCCESS {
+        return false
+    }
+
+    return count > 0
 }
 
 // TODO: Implement AMD GPU detection in the future

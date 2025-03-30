@@ -1,8 +1,9 @@
 package domain
 
 type CPUMemoryMetrics struct {
-	CPUUsage    []float64
-	MemoryUsage float64
+    CPUUsagePerCore []float64
+    CPUUsageTotal   float64
+    MemoryUsage     float64
 }
 
 type GPUMetrics struct {
