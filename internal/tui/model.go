@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"log"
 
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jonsampson/mim/internal/domain"
@@ -17,7 +19,8 @@ type metricsCollector[T any] interface {
 
 type Model struct {
 	cpuHeatmap         *CPUHeatmap
-    cpuUsageSparkline  *CPUUsageSparkline
+	cpuUsageSparkline  *CPUUsageSparkline
+	busiestCores       *BusiestCores
 	cpuMemoryMetrics   domain.CPUMemoryMetrics
 	cpuMemoryCollector metricsCollector[domain.CPUMemoryMetrics]
 	gpuCollector       metricsCollector[domain.GPUMetrics]
@@ -26,15 +29,22 @@ type Model struct {
 	memoryUsage        float64
 	gpuUsage           float64
 	gpuMemoryUsage     float64
+	width              int
+	height             int
+	help               help.Model
 }
 
 func InitialModel(collectors ...interface{}) (Model, error) {
+
 	model := Model{
 		cpuUsagePerCore: []float64{},
 		cpuUsageTotal:   0,
 		memoryUsage:     0,
 		gpuUsage:        0,
 		gpuMemoryUsage:  0,
+		cpuUsageSparkline: NewCPUUsageSparkline(),
+		cpuHeatmap: NewCPUHeatmap(),
+		busiestCores: NewBusiestCores(),
 	}
 
 	collectorInitialized := false
@@ -88,23 +98,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.cpuHeatmap.Resize(m.width/2, 6)
+		m.busiestCores.Resize(m.width/2, 6)
+		m.cpuUsageSparkline.Resize(m.width/2, 3)
+		log.Printf("Window size changed: %d x %d", msg.Width, msg.Height)
 	case domain.CPUMemoryMetrics:
 		m.cpuMemoryMetrics = msg
 		m.cpuUsagePerCore = msg.CPUUsagePerCore
 		m.cpuUsageTotal = msg.CPUUsageTotal
 		m.memoryUsage = msg.MemoryUsage
 
-		// Initialize or update the CPU heatmap
-		if m.cpuHeatmap == nil {
-			m.cpuHeatmap = NewCPUHeatmap(len(m.cpuUsagePerCore))
-		}
+		m.cpuUsageSparkline.Update(msg)
 		m.cpuHeatmap.Update(msg)
+		m.busiestCores.Update(msg)
 
-        // Initialize or update the CPU usage sparkline
-        if m.cpuUsageSparkline == nil {
-            m.cpuUsageSparkline = NewCPUUsageSparkline(20, 3)
-        }
-        m.cpuUsageSparkline.Update(msg)
 		cmd = listenForMetrics(m.cpuMemoryCollector.Metrics())
 
 	case domain.GPUMetrics:
@@ -117,25 +127,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	// Combine views of all components
-	cpuHeatmapView := "CPU Heatmap initializing..."
-	if m.cpuHeatmap != nil {
-		cpuHeatmapView = m.cpuHeatmap.View()
-	}
-    cpuUsageSparklineView := "CPU Usage Sparkline initializing..."
-    if m.cpuUsageSparkline != nil {
-        cpuUsageSparklineView = m.cpuUsageSparkline.View()
-    }
-	return lipgloss.JoinVertical(
+	// Define styles for layout
+	containerStyle := lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height).
+		Padding(1)
+
+	leftColumnStyle := lipgloss.NewStyle().
+		Width(m.width / 2).
+		Height(m.height - 2)
+
+	rightColumnStyle := leftColumnStyle
+
+	// Render components
+	cpuUsageView := m.cpuUsageSparkline.View()
+	cpuHeatmapView := m.cpuHeatmap.View()
+	busiestCoresView := m.busiestCores.View()
+
+	// Combine components
+	leftColumn := lipgloss.JoinVertical(
 		lipgloss.Left,
-        cpuUsageSparklineView,
-        fmt.Sprintf("CPU Heatmap (%d cores)", len(m.cpuUsagePerCore)),
-		cpuHeatmapView,
+		cpuUsageView,
+		lipgloss.PlaceHorizontal(m.width/2, lipgloss.Center, cpuHeatmapView),
+		busiestCoresView,
+	)
+
+	rightColumn := lipgloss.JoinVertical(
+		lipgloss.Left,
 		fmt.Sprintf("Memory Usage: %.2f%%", m.memoryUsage),
 		fmt.Sprintf("GPU Usage: %.2f%%", m.gpuUsage),
 		fmt.Sprintf("GPU Memory Usage: %.2f%%", m.gpuMemoryUsage),
 		"\nPress q to quit",
 	)
+
+	// Combine columns
+	content := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		leftColumnStyle.Render(leftColumn),
+		rightColumnStyle.Render(rightColumn),
+	)
+
+	// Render final view
+	return containerStyle.Render(content)
 }
 
 func listenForMetrics[T any](metrics <-chan T) tea.Cmd {

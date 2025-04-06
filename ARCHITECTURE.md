@@ -114,10 +114,10 @@ Here's the proposed layout for the initial static UI:
 
 Implementation Notes:
 
-a) CPU Usage Section:
-   - Implement a custom Bubble Tea component for the CPU Core Heatmap.
-   - Use a grid of colored blocks, where each block represents a core and its color intensity represents usage.
-   - Implement a sorting mechanism to identify and display the top 5 busiest cores.
+a) CPU Usage Section: ✓
+   - Implement a custom Bubble Tea component for the CPU Core Heatmap. ✓
+   - Use a grid of colored blocks, where each block represents a core and its color intensity represents usage. ✓
+   - Implement a sorting mechanism to identify and display the top 5 busiest cores. ✓
 
 b) Memory Usage Section:
    - Use Bubble Tea's built-in components or create custom ones for the memory usage bar graphs.
@@ -133,6 +133,9 @@ d) Process Monitor Section:
 e) Overall Layout:
    - Use Bubble Tea's layout components (or create custom ones) to divide the screen into four main sections.
    - Ensure that each section can be updated independently for better performance.
+   - Implement responsive design to fill the entire screen horizontally and support resizing.
+   - Center the CPU heatmap without changing its size.
+   - Allow CPU usage and busiest cores components to adapt their horizontal data display based on available space.
 
 2) Develop a basic Bubble Tea prototype displaying sample data.
    - Start by implementing the overall layout structure.

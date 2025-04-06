@@ -9,41 +9,44 @@ import (
 )
 
 type CPUUsageSparkline struct {
-    sl         *sparkline.Model
-    width      int
-    height     int
-    lastValue  float64
+    sl        *sparkline.Model
+    width     int
+    height    int
+    lastValue float64
 }
 
-func NewCPUUsageSparkline(width, height int) *CPUUsageSparkline {
+func NewCPUUsageSparkline() *CPUUsageSparkline {
+    sparkline := sparkline.New(
+        20,
+        1,
+        sparkline.WithMaxValue(100),
+    )
     return &CPUUsageSparkline{
-        width:     width,
-        height:    height,
+        width:     50, // Set a default width
+        height:    3,
         lastValue: 0,
-    }
-}
-
-func (c *CPUUsageSparkline) initializeIfNeeded() {
-    if c.sl == nil {
-        sparkline := sparkline.New(
-			c.width, 
-			c.height,
-			sparkline.WithMaxValue(100),
-		)
-        c.sl = &sparkline
+        sl:        &sparkline,
     }
 }
 
 func (c *CPUUsageSparkline) Update(metrics domain.CPUMemoryMetrics) {
-    c.initializeIfNeeded()
     c.lastValue = metrics.CPUUsageTotal
-    c.sl.Push(c.lastValue)
-    c.sl.Draw()
+    if c.sl != nil {
+        c.sl.Push(c.lastValue)
+        c.sl.Draw()
+    }
 }
 
 func (c *CPUUsageSparkline) View() string {
-    c.initializeIfNeeded()
     sparklineView := c.sl.View()
-    currentUsage := fmt.Sprintf("CPU Usage: %.1f%%", c.lastValue)
+    currentUsage := fmt.Sprintf("Current CPU Usage: %.1f%%", c.lastValue)
     return lipgloss.JoinVertical(lipgloss.Left, sparklineView, currentUsage)
+}
+
+func (c *CPUUsageSparkline) Resize(width, height int) {
+    c.width = width
+    c.height = height
+    if c.sl != nil {
+        c.sl.Resize(width, height)
+    }
 }
