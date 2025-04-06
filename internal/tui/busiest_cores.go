@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"math"
 	"sort"
 
 	"github.com/jonsampson/mim/internal/domain"
@@ -9,8 +10,9 @@ import (
 type BusiestCores struct {
 	coreUsages []float64
 	coreCharts map[int]*CoreSparkline
-	width  int
-	height int
+	width      int
+	height     int
+	squareDimension int
 }
 
 // NewBusiestCores initializes a BusiestCores instance.
@@ -24,16 +26,17 @@ func NewBusiestCores() *BusiestCores {
 func (b *BusiestCores) initializeIfNeeded(coreID int) {
 	if b.coreCharts[coreID] == nil {
 		b.coreCharts[coreID] = NewCoreSparkline(coreID)
-		b.coreCharts[coreID].Resize(b.width, b.height)
+		b.coreCharts[coreID].Resize(b.width-b.squareDimension-3, b.height)
 	}
 }
 
 // Update updates the core usage data and their sparkline charts.
-func (b *BusiestCores) Update(metrics domain.CPUMemoryMetrics) { 
+func (b *BusiestCores) Update(metrics domain.CPUMemoryMetrics) {
 	if b == nil {
 		return
 	}
 	b.coreUsages = metrics.CPUUsagePerCore
+	b.squareDimension = int(math.Ceil(math.Sqrt(float64(len(metrics.CPUUsagePerCore)))))
 	for i, usage := range metrics.CPUUsagePerCore {
 		b.initializeIfNeeded(i)
 		b.coreCharts[i].Update(usage)
@@ -42,7 +45,7 @@ func (b *BusiestCores) Update(metrics domain.CPUMemoryMetrics) {
 }
 
 // GetTopBusiestCores returns the top 5 busiest cores and their usage percentages.
-func (b *BusiestCores) GetTopBusiestCores() []int {    
+func (b *BusiestCores) GetTopBusiestCores() []int {
 	if b == nil || len(b.coreUsages) == 0 {
 		return []int{}
 	}
@@ -91,6 +94,6 @@ func (b *BusiestCores) Resize(width, height int) {
 	b.width = width
 	b.height = height
 	for _, sparkline := range b.coreCharts {
-		sparkline.Resize(width, 1)
+		sparkline.Resize(width-b.squareDimension-3, 1)
 	}
 }

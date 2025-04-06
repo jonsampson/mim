@@ -81,35 +81,50 @@ TODO: Revisit AMD GPU metrics collection implementation using `goamdsmi` or alte
 Here's the proposed layout for the initial static UI:
 
 ```
-+----------------------------------+----------------------------------+
-|             CPU Usage            |           Memory Usage           |
-|                                  |                                  |
-| [Aggregate CPU Usage Bar/Graph]  | [System Memory Usage Bar/Graph]  |
-|                                  |                                  |
-| [CPU Core Heatmap]               | [Memory Usage Details]           |
-| (Showing all cores as color-     | - Total:                         |
-|  coded squares, with color       | - Used:                          |
-|  intensity representing usage)   | - Free:                          |
-|                                  | - Cached:                        |
-| Top 5 Busiest Cores:             |                                  |
-| Core 7:  [===========]  90%      | [Swap Usage Bar/Graph]           |
-| Core 12: [==========]   85%      | - Total:                         |
-| Core 3:  [=========]    80%      | - Used:                          |
-| Core 18: [========]     75%      | - Free:                          |
-| Core 1:  [=======]      70%      |                                  |
-+----------------------------------+----------------------------------+
-|             GPU Usage            |         Process Monitor          |
-|                                  |                                  |
-| [GPU Usage Bar/Graph]            | [Top Processes Table]            |
-|                                  |                                  |
-| [GPU Memory Usage Bar/Graph]     | PID  CPU%  MEM%  Command         |
-|                                  | 1234  25.0  10.2  process1       |
-| GPU Details:                     | 5678  15.5   8.7  process2       |
-| - Model:                         | 9012  10.2   5.3  process3       |
-| - Temperature:                   | 3456   8.7   4.1  process4       |
-| - Fan Speed:                     | 7890   7.3   3.8  process5       |
-| - Power Usage:                   |                                  |
-+----------------------------------+----------------------------------+
++------------------------------------------------------------------+
+|                     CPU & GPU Usage Over Time                    |
+|                                                                  |
+| [CPU & GPU Usage Line Graph]                                     |
+| (Showing total CPU % and GPU % usage over time)                  |
+|                                                                  |
++------------------------------------------------------------------+
+|                        CPU Core Heatmap                          |
+|                                                                  |
+| +------------------------+       +------------------------+       |
+| |                        |       |                        |       |
+| |   [CPU Core Heatmap]   |       |   [CPU Core Heatmap]   |       |
+| |   (First half of       |       |   (Second half of      |       |
+| |    cores)              |       |    cores)              |       |
+| |                        |       |                        |       |
+| +------------------------+       +------------------------+       |
+|                                                                  |
++------------------------------------------------------------------+
+|                Memory & GPU Memory Usage Over Time               |
+|                                                                  |
+| [Memory & GPU Memory Line Graph]                                 |
+| (Showing total RAM % and GPU memory % usage over time)           |
+|                                                                  |
++------------------------------------------------------------------+
+|                        Process Monitor                           |
+|                                                                  |
+| [Top Processes Table]                                            |
+|                                                                  |
+| PID    CPU%    MEM%    Command                                   |
+| 1234   25.0    10.2    process1                                  |
+| 5678   15.5     8.7    process2                                  |
+| 9012   10.2     5.3    process3                                  |
+| 3456    8.7     4.1    process4                                  |
+| 7890    7.3     3.8    process5                                  |
+|                                                                  |
++------------------------------------------------------------------+
+|                         GPU Details                              |
+|                                                                  |
+| Model:        [GPU Model]                                        |
+| Temperature:  [Temperature]                                      |
+| Fan Speed:    [Fan Speed]                                        |
+| Power Usage:  [Power Usage]                                      |
+|                                                                  |
++------------------------------------------------------------------+
 ```
 
 Implementation Notes:

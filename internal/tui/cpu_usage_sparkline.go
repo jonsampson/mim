@@ -40,7 +40,7 @@ func (c *CPUUsageSparkline) Update(metrics domain.CPUMemoryMetrics) {
 func (c *CPUUsageSparkline) View() string {
     sparklineView := c.sl.View()
     currentUsage := fmt.Sprintf("Current CPU Usage: %.1f%%", c.lastValue)
-    return lipgloss.JoinVertical(lipgloss.Left, sparklineView, currentUsage)
+    return lipgloss.JoinVertical(lipgloss.Left, currentUsage, sparklineView)
 }
 
 func (c *CPUUsageSparkline) Resize(width, height int) {

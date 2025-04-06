@@ -10,8 +10,6 @@ import (
 type CPUHeatmap struct {
 	hm              *heatmap.Model
 	squareDimension int
-	xOffset         int
-	yOffset         int
 }
 
 func NewCPUHeatmap() *CPUHeatmap {
@@ -41,31 +39,9 @@ func (c *CPUHeatmap) Update(metrics domain.CPUMemoryMetrics) {
 	c.hm = &heatMap
 }
 
-func (c *CPUHeatmap) Resize(width, height int) {
-	// Calculate the position to center the heatmap
-	c.xOffset = (width - c.squareDimension) / 2
-	c.yOffset = 0
-}
-
 func (c *CPUHeatmap) View() string {
 	if c.hm == nil {
 		return ""
 	}
-	// log.Printf("CPUHeatmap View: %v", c.hm)
 	return c.hm.View()
-	// view := c.hm.View()
-	// lines := strings.Split(view, "\n")
-
-	// // Add vertical padding
-	// for range c.yOffset {
-	// 	lines = append([]string{""}, lines...)
-	// }
-
-	// // Add horizontal padding
-	// paddedLines := make([]string, len(lines))
-	// for i, line := range lines {
-	// 	paddedLines[i] = strings.Repeat(" ", c.xOffset) + line
-	// }
-
-	// return strings.Join(paddedLines, "\n")
 }

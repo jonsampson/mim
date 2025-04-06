@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/NimbleMarkets/ntcharts/sparkline"
 )
@@ -11,13 +10,13 @@ type CoreSparkline struct {
 	sparkline *sparkline.Model
 	coreID    int
 	lastValue float64
-	width    int
-	height   int
+	width     int
+	height    int
 }
 
 func NewCoreSparkline(coreID int) *CoreSparkline {
 	sparkline := sparkline.New(
-		20,
+		1,
 		1,
 		sparkline.WithMaxValue(100),
 	)
@@ -46,6 +45,5 @@ func (c *CoreSparkline) Resize(width, height int) {
 	// This is a simplified example; you might want to use a more sophisticated calculation
 	c.width = width
 	c.height = height
-	log.Printf("Resizing sparkline for core %d to width %d", c.coreID, width-23)
-	c.sparkline.Resize(width-23, 1)
+	c.sparkline.Resize(width-17, 1)
 }

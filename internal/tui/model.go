@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jonsampson/mim/internal/domain"
@@ -18,9 +17,8 @@ type metricsCollector[T any] interface {
 }
 
 type Model struct {
-	cpuHeatmap         *CPUHeatmap
-	cpuUsageSparkline  *CPUUsageSparkline
-	busiestCores       *BusiestCores
+	cpuGPUUsageGraph   *CPUGPUUsageGraph
+	memoryUsageGraph   *MemoryUsageGraph
 	cpuMemoryMetrics   domain.CPUMemoryMetrics
 	cpuMemoryCollector metricsCollector[domain.CPUMemoryMetrics]
 	gpuCollector       metricsCollector[domain.GPUMetrics]
@@ -31,20 +29,20 @@ type Model struct {
 	gpuMemoryUsage     float64
 	width              int
 	height             int
-	help               help.Model
+	cpuCombinedView    *CPUCombinedView
 }
 
 func InitialModel(collectors ...interface{}) (Model, error) {
 
 	model := Model{
-		cpuUsagePerCore: []float64{},
-		cpuUsageTotal:   0,
-		memoryUsage:     0,
-		gpuUsage:        0,
-		gpuMemoryUsage:  0,
-		cpuUsageSparkline: NewCPUUsageSparkline(),
-		cpuHeatmap: NewCPUHeatmap(),
-		busiestCores: NewBusiestCores(),
+		cpuUsagePerCore:  []float64{},
+		cpuUsageTotal:    0,
+		memoryUsage:      0,
+		gpuUsage:         0,
+		gpuMemoryUsage:   0,
+		cpuGPUUsageGraph: NewCPUGPUUsageGraph(),
+		memoryUsageGraph: NewMemoryUsageGraph(),
+		cpuCombinedView:  NewCPUCombinedView(),
 	}
 
 	collectorInitialized := false
@@ -99,27 +97,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
+		log.Printf("Window size changed: %d x %d", msg.Width, msg.Height)
 		m.width = msg.Width
 		m.height = msg.Height
-		m.cpuHeatmap.Resize(m.width/2, 6)
-		m.busiestCores.Resize(m.width/2, 6)
-		m.cpuUsageSparkline.Resize(m.width/2, 3)
-		log.Printf("Window size changed: %d x %d", msg.Width, msg.Height)
+		m.cpuCombinedView.Resize(m.width-5, m.height)
+		m.cpuGPUUsageGraph.Resize(m.width-5, 10)
+		m.memoryUsageGraph.Resize(m.width-5, 10)
 	case domain.CPUMemoryMetrics:
 		m.cpuMemoryMetrics = msg
 		m.cpuUsagePerCore = msg.CPUUsagePerCore
 		m.cpuUsageTotal = msg.CPUUsageTotal
 		m.memoryUsage = msg.MemoryUsage
 
-		m.cpuUsageSparkline.Update(msg)
-		m.cpuHeatmap.Update(msg)
-		m.busiestCores.Update(msg)
+		m.cpuCombinedView.Update(msg)
+		m.cpuGPUUsageGraph.UpdateCPU(msg)
+		m.memoryUsageGraph.UpdateSystemMemory(msg)
 
 		cmd = listenForMetrics(m.cpuMemoryCollector.Metrics())
 
 	case domain.GPUMetrics:
 		m.gpuUsage = msg.GPUUsage
 		m.gpuMemoryUsage = msg.GPUMemoryUsage
+		m.cpuGPUUsageGraph.UpdateGPU(msg)
+		m.memoryUsageGraph.UpdateGPUMemory(msg)
+
 		cmd = listenForMetrics(m.gpuCollector.Metrics())
 	}
 
@@ -133,38 +134,19 @@ func (m Model) View() string {
 		Height(m.height).
 		Padding(1)
 
-	leftColumnStyle := lipgloss.NewStyle().
-		Width(m.width / 2).
-		Height(m.height - 2)
-
-	rightColumnStyle := leftColumnStyle
-
 	// Render components
-	cpuUsageView := m.cpuUsageSparkline.View()
-	cpuHeatmapView := m.cpuHeatmap.View()
-	busiestCoresView := m.busiestCores.View()
-
-	// Combine components
-	leftColumn := lipgloss.JoinVertical(
-		lipgloss.Left,
-		cpuUsageView,
-		lipgloss.PlaceHorizontal(m.width/2, lipgloss.Center, cpuHeatmapView),
-		busiestCoresView,
-	)
-
-	rightColumn := lipgloss.JoinVertical(
-		lipgloss.Left,
-		fmt.Sprintf("Memory Usage: %.2f%%", m.memoryUsage),
-		fmt.Sprintf("GPU Usage: %.2f%%", m.gpuUsage),
-		fmt.Sprintf("GPU Memory Usage: %.2f%%", m.gpuMemoryUsage),
-		"\nPress q to quit",
-	)
+	cpuSection := m.cpuCombinedView.View()
 
 	// Combine columns
-	content := lipgloss.JoinHorizontal(
+	content := lipgloss.JoinVertical(
 		lipgloss.Top,
-		leftColumnStyle.Render(leftColumn),
-		rightColumnStyle.Render(rightColumn),
+		m.cpuGPUUsageGraph.View(),
+		fmt.Sprintf("    CPU Usage: %.2f%%   GPU Usage: %.2f%%", m.cpuUsageTotal, m.gpuUsage),
+		lipgloss.NewStyle().Render(""),
+		cpuSection,
+		m.memoryUsageGraph.View(),
+		fmt.Sprintf("    Memory Usage: %.2f%%   GPU Memory Usage: %.2f%%", m.memoryUsage, m.gpuMemoryUsage),
+		"\nPress q to quit",
 	)
 
 	// Render final view
