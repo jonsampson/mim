@@ -12,6 +12,7 @@ type CPUCombinedView struct {
     busiestCores *BusiestCores
     width        int
     height       int
+    metrics    domain.CPUMemoryMetrics
 }
 
 // NewCPUCombinedView creates a new combined view of CPU heatmap and busiest cores
@@ -24,6 +25,7 @@ func NewCPUCombinedView() *CPUCombinedView {
 
 // Update updates both the heatmap and busiest cores with new metrics
 func (c *CPUCombinedView) Update(metrics domain.CPUMemoryMetrics) {
+    c.metrics = metrics
     c.heatmap.Update(metrics)
     c.busiestCores.Update(metrics)
 }

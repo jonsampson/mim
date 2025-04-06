@@ -29,15 +29,24 @@ func NewCPUUsageSparkline() *CPUUsageSparkline {
     }
 }
 
-func (c *CPUUsageSparkline) Update(metrics domain.CPUMemoryMetrics) {
+func (c *CPUUsageSparkline) Update(msg interface{}) {
+    switch msg := msg.(type) {
+    case domain.CPUMemoryMetrics:
+        c.updateSparkline(msg)
+    }
+}
+
+func (c *CPUUsageSparkline) updateSparkline(metrics domain.CPUMemoryMetrics) {
     c.lastValue = metrics.CPUUsageTotal
     if c.sl != nil {
         c.sl.Push(c.lastValue)
-        c.sl.Draw()
     }
 }
 
 func (c *CPUUsageSparkline) View() string {
+    if c.sl != nil {
+        c.sl.Draw()
+    }
     sparklineView := c.sl.View()
     currentUsage := fmt.Sprintf("Current CPU Usage: %.1f%%", c.lastValue)
     return lipgloss.JoinVertical(lipgloss.Left, currentUsage, sparklineView)

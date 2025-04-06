@@ -44,17 +44,25 @@ func NewMemoryUsageGraph() *MemoryUsageGraph {
     }
 }
 
-func (g *MemoryUsageGraph) UpdateSystemMemory(memoryMetrics domain.CPUMemoryMetrics) {
-    g.slc.PushDataSet(systemMemoryDataSet, memoryMetrics.MemoryUsage)
-    g.slc.DrawAll()
+func (g *MemoryUsageGraph) Update(msg interface{}) {
+    switch msg := msg.(type) {
+    case domain.CPUMemoryMetrics:
+        g.updateSystemMemory(msg)
+    case domain.GPUMetrics:
+        g.updateGPUMemory(msg)
+    }
 }
 
-func (g *MemoryUsageGraph) UpdateGPUMemory(gpuMetrics domain.GPUMetrics) {
+func (g *MemoryUsageGraph) updateSystemMemory(memoryMetrics domain.CPUMemoryMetrics) {
+    g.slc.PushDataSet(systemMemoryDataSet, memoryMetrics.MemoryUsage)
+}
+
+func (g *MemoryUsageGraph) updateGPUMemory(gpuMetrics domain.GPUMetrics) {
     g.slc.PushDataSet(gpuMemoryDataSet, gpuMetrics.GPUMemoryUsage)
-    g.slc.DrawAll()
 }
 
 func (g *MemoryUsageGraph) View() string {
+    g.slc.DrawAll()
     return g.slc.View()
 }
 

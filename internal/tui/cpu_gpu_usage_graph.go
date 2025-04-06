@@ -44,16 +44,25 @@ func NewCPUGPUUsageGraph() *CPUGPUUsageGraph {
 	}
 }
 
-func (g *CPUGPUUsageGraph) UpdateCPU(cpuMetrics domain.CPUMemoryMetrics) {
-	g.slc.PushDataSet(cpuDataSet, cpuMetrics.CPUUsageTotal)
-	g.slc.DrawAll()
+func (g *CPUGPUUsageGraph) Update(msg interface{}) {
+	switch msg := msg.(type) {
+	case domain.CPUMemoryMetrics:
+		g.updateCPU(msg)
+	case domain.GPUMetrics:
+		g.updateGPU(msg)
+	}
 }
-func (g *CPUGPUUsageGraph) UpdateGPU(gpuMetrics domain.GPUMetrics) {
+
+func (g *CPUGPUUsageGraph) updateCPU(cpuMetrics domain.CPUMemoryMetrics) {
+	g.slc.PushDataSet(cpuDataSet, cpuMetrics.CPUUsageTotal)
+}
+
+func (g *CPUGPUUsageGraph) updateGPU(gpuMetrics domain.GPUMetrics) {
 	g.slc.PushDataSet(gpuDataSet, gpuMetrics.GPUUsage)
-	g.slc.DrawAll()
 }
 
 func (g *CPUGPUUsageGraph) View() string {
+	g.slc.DrawAll()
 	return g.slc.View()
 }
 

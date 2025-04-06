@@ -110,16 +110,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.memoryUsage = msg.MemoryUsage
 
 		m.cpuCombinedView.Update(msg)
-		m.cpuGPUUsageGraph.UpdateCPU(msg)
-		m.memoryUsageGraph.UpdateSystemMemory(msg)
+		m.cpuGPUUsageGraph.Update(msg)
+		m.memoryUsageGraph.Update(msg)
 
 		cmd = listenForMetrics(m.cpuMemoryCollector.Metrics())
 
 	case domain.GPUMetrics:
 		m.gpuUsage = msg.GPUUsage
 		m.gpuMemoryUsage = msg.GPUMemoryUsage
-		m.cpuGPUUsageGraph.UpdateGPU(msg)
-		m.memoryUsageGraph.UpdateGPUMemory(msg)
+		m.cpuGPUUsageGraph.Update(msg)
+		m.memoryUsageGraph.Update(msg)
 
 		cmd = listenForMetrics(m.gpuCollector.Metrics())
 	}
