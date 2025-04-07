@@ -31,18 +31,25 @@ func (c *CPUHeatmap) updateHeatmap() {
         c.squareDimension+1,
         heatmap.WithValueRange(0, 100),
     )
+    
     matrix := make([][]float64, c.squareDimension)
-    core := 0
     for i := range matrix {
         matrix[i] = make([]float64, c.squareDimension)
-        for j := range matrix[i] {
-            if core >= len(c.metrics.CPUUsagePerCore) {
-                break
+    }
+
+    core := 0
+    for i := 0; i < c.squareDimension; i++ {
+        for j := 0; j < c.squareDimension; j++ {
+            if core < len(c.metrics.CPUUsagePerCore) {
+                // Rotate 90 degrees clockwise
+                matrix[j][c.squareDimension-1-i] = c.metrics.CPUUsagePerCore[core]
+                core++
+            } else {
+                matrix[j][c.squareDimension-1-i] = 0
             }
-            matrix[i][j] = c.metrics.CPUUsagePerCore[core]
-            core++
         }
     }
+
     heatMap.PushAllMatrixRow(matrix)
     c.hm = &heatMap
 }
