@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"log"
+	"math"
 	"strings"
 
 	"github.com/NimbleMarkets/ntcharts/sparkline"
@@ -10,10 +12,11 @@ import (
 )
 
 type BusiestCores struct {
-	coreUsages []float64
-	coreCharts map[int]*sparkline.Model
-	width      int
-	height     int
+	coreUsages      []float64
+	coreCharts      map[int]*sparkline.Model
+	width           int
+	height          int
+	squareDimension int
 }
 
 // NewBusiestCores initializes a BusiestCores instance.
@@ -26,9 +29,11 @@ func NewBusiestCores() *BusiestCores {
 
 func (b *BusiestCores) initializeIfNeeded(coreID int) {
 	if b.coreCharts[coreID] == nil {
-		chart := sparkline.New(10, 1,
+		graphWidth := max((b.width / (b.squareDimension * 2)), 1)
+		chart := sparkline.New(graphWidth, 1,
 			sparkline.WithMaxValue(100),
 		)
+		chart.PushAll(make([]float64, graphWidth))
 		b.coreCharts[coreID] = &chart
 	}
 }
@@ -43,10 +48,11 @@ func (b *BusiestCores) Update(msg interface{}) {
 
 // updateMetrics updates the core usage data and their braille graphs.
 func (b *BusiestCores) updateMetrics(metrics domain.CPUMemoryMetrics) {
-	if b == nil {
+	if b == nil || b.width == 0 {
 		return
 	}
 	b.coreUsages = metrics.CPUUsagePerCore
+	b.squareDimension = int(math.Ceil(math.Sqrt(float64(len(b.coreUsages)))))
 	for i, usage := range metrics.CPUUsagePerCore {
 		b.initializeIfNeeded(i)
 		b.coreCharts[i].Push(usage)
@@ -60,13 +66,10 @@ func (b *BusiestCores) View() string {
 	}
 
 	var views []string
-	coresPerRow := 6
-	rows := (len(b.coreUsages) + coresPerRow - 1) / coresPerRow
-
-	for row := 0; row < rows; row++ {
+	for row := 0; row < b.squareDimension; row++ {
 		var rowViews []string
-		for col := 0; col < coresPerRow; col++ {
-			coreID := row*coresPerRow + col
+		for col := 0; col < b.squareDimension; col++ {
+			coreID := row*b.squareDimension + col
 			if coreID >= len(b.coreUsages) {
 				break
 			}
@@ -106,10 +109,22 @@ func (b *BusiestCores) Resize(width, height int) {
 	if b == nil {
 		return
 	}
+	log.Printf("Resizing BusiestCores to %d x %d", width, height)
 	b.width = width
 	b.height = height
-	graphWidth := (width / 6) - 7 // Assuming 6 cores per row, with some padding
+	if b.squareDimension == 0 {
+		return
+	}
+	graphWidth := max((b.width / (b.squareDimension * 2)), 1) // Adjust based on square dimension, minimum 1
 	for _, chart := range b.coreCharts {
 		chart.Resize(graphWidth, 1)
 	}
+}
+
+// max returns the larger of x or y
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
 }
