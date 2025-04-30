@@ -6,6 +6,7 @@ import (
 	"github.com/jonsampson/mim/internal/domain"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 type CPUMemoryCollector struct {
@@ -47,7 +48,7 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 	// Collect results and handle potential errors
 	var cpuUsagePerCore []float64
 	var cpuUsageTotal float64
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case perCore := <-perCoreChan:
 			cpuUsagePerCore = perCore
@@ -64,9 +65,33 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 		return domain.CPUMemoryMetrics{}, err
 	}
 
-	return domain.CPUMemoryMetrics{
+	// Get process information
+	processes, err := process.Processes()
+	if err != nil {
+		return domain.CPUMemoryMetrics{}, err
+	}
+
+	metrics := domain.CPUMemoryMetrics{
 		CPUUsagePerCore: cpuUsagePerCore,
 		CPUUsageTotal:   cpuUsageTotal,
 		MemoryUsage:     memStat.UsedPercent,
-	}, nil
+		Processes:       make([]domain.CPUProcessInfo, 0, len(processes)),
+	}
+
+	for _, p := range processes {
+		pid := p.Pid
+		cpuPercent, _ := p.CPUPercent()
+		memPercent, _ := p.MemoryPercent()
+		name, _ := p.Name()
+
+		metrics.Processes = append(metrics.Processes, domain.CPUProcessInfo{
+			Pid:           uint32(pid),
+			CPUPercent:    cpuPercent,
+			MemoryPercent: float64(memPercent),
+			Command:       name,
+		})
+	}
+
+	// Return the collected metrics
+	return metrics, nil
 }

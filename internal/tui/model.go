@@ -20,6 +20,7 @@ type Model struct {
 	cpuGPUUsageGraph   *CPUGPUUsageGraph
 	memoryUsageGraph   *MemoryUsageGraph
 	cpuMemoryMetrics   domain.CPUMemoryMetrics
+	gpuMetrics         domain.GPUMetrics
 	cpuMemoryCollector metricsCollector[domain.CPUMemoryMetrics]
 	gpuCollector       metricsCollector[domain.GPUMetrics]
 	cpuUsagePerCore    []float64
@@ -30,6 +31,7 @@ type Model struct {
 	width              int
 	height             int
 	cpuCombinedView    *CPUCombinedView
+	processMonitor     *ProcessMonitor
 }
 
 func InitialModel(collectors ...interface{}) (Model, error) {
@@ -43,6 +45,7 @@ func InitialModel(collectors ...interface{}) (Model, error) {
 		cpuGPUUsageGraph: NewCPUGPUUsageGraph(),
 		memoryUsageGraph: NewMemoryUsageGraph(),
 		cpuCombinedView:  NewCPUCombinedView(),
+		processMonitor:   NewProcessMonitor(),
 	}
 
 	collectorInitialized := false
@@ -113,13 +116,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cpuGPUUsageGraph.Update(msg)
 		m.memoryUsageGraph.Update(msg)
 
+		m.processMonitor.UpdateProcesses(m.cpuMemoryMetrics.Processes, m.gpuMetrics.Processes)
+
 		cmd = listenForMetrics(m.cpuMemoryCollector.Metrics())
 
 	case domain.GPUMetrics:
+		m.gpuMetrics = msg
 		m.gpuUsage = msg.GPUUsage
 		m.gpuMemoryUsage = msg.GPUMemoryUsage
 		m.cpuGPUUsageGraph.Update(msg)
 		m.memoryUsageGraph.Update(msg)
+
+		m.processMonitor.UpdateProcesses(m.cpuMemoryMetrics.Processes, m.gpuMetrics.Processes)
 
 		cmd = listenForMetrics(m.gpuCollector.Metrics())
 	}
@@ -149,8 +157,21 @@ func (m Model) View() string {
 		"\nPress q to quit",
 	)
 
+	processMonitorView := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderTop(true).
+		BorderLeft(true).
+		BorderRight(true).
+		BorderBottom(true).
+		Padding(0, 1).
+		Render("Process Monitor\n\n" + m.processMonitor.View())
+
 	// Render final view
-	return containerStyle.Render(content)
+	return containerStyle.Render(lipgloss.JoinVertical(
+		lipgloss.Left,
+		content,
+		processMonitorView,
+	))
 }
 
 func listenForMetrics[T any](metrics <-chan T) tea.Cmd {

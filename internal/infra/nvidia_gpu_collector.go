@@ -48,8 +48,45 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 		return domain.GPUMetrics{}, fmt.Errorf("failed to get memory info: %v", ret)
 	}
 
+	processUtilizationList, err := device.GetProcessUtilization(1000000) // 1 second
+	if err != nvml.SUCCESS {
+		return domain.GPUMetrics{}, fmt.Errorf("failed to get process utilization info: %v", err)
+	}
+
+	graphicsRunningProcesses, err := device.GetGraphicsRunningProcesses()
+	if err != nvml.SUCCESS {
+		return domain.GPUMetrics{}, fmt.Errorf("failed to get graphics running processes: %v", err)
+	}
+
+	processInfo := make(map[uint32]domain.GPUProcessInfo)
+
+	for _, process := range processUtilizationList {
+		processInfo[process.Pid] = domain.GPUProcessInfo{
+			Pid:    process.Pid,
+			SmUtil: process.SmUtil,
+		}
+	}
+
+	for _, process := range graphicsRunningProcesses {
+		if info, exists := processInfo[process.Pid]; exists {
+			info.UsedGpuMemory = process.UsedGpuMemory
+			processInfo[process.Pid] = info
+		} else {
+			processInfo[process.Pid] = domain.GPUProcessInfo{
+				Pid:           process.Pid,
+				UsedGpuMemory: process.UsedGpuMemory,
+			}
+		}
+	}
+
+	processes := make([]domain.GPUProcessInfo, 0, len(processInfo))
+	for _, info := range processInfo {
+		processes = append(processes, info)
+	}
+
 	return domain.GPUMetrics{
 		GPUUsage:       float64(utilization.Gpu),
 		GPUMemoryUsage: float64(memory.Used) / float64(memory.Total) * 100,
+		Processes:      processes,
 	}, nil
 }
