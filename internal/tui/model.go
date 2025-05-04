@@ -35,7 +35,6 @@ type Model struct {
 }
 
 func InitialModel(collectors ...interface{}) (Model, error) {
-
 	model := Model{
 		cpuUsagePerCore:  []float64{},
 		cpuUsageTotal:    0,
@@ -45,7 +44,9 @@ func InitialModel(collectors ...interface{}) (Model, error) {
 		cpuGPUUsageGraph: NewCPUGPUUsageGraph(),
 		memoryUsageGraph: NewMemoryUsageGraph(),
 		cpuCombinedView:  NewCPUCombinedView(),
-		processMonitor:   NewProcessMonitor(),
+		processMonitor:   NewProcessMonitor(80), // Initialize with a default width
+		width:            80,                    // Set a default width
+		height:           24,                    // Set a default height
 	}
 
 	collectorInitialized := false
@@ -83,6 +84,9 @@ func (m Model) Init() tea.Cmd {
 		cmds = append(cmds, listenForMetrics(m.gpuCollector.Metrics()))
 	}
 
+	// Return a command to get the initial window size
+	cmds = append(cmds, tea.EnterAltScreen)
+
 	return tea.Batch(cmds...)
 }
 
@@ -103,6 +107,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		log.Printf("Window size changed: %d x %d", msg.Width, msg.Height)
 		m.width = msg.Width
 		m.height = msg.Height
+		m.processMonitor.Resize(m.width) // Add this method to ProcessMonitor
 		m.cpuCombinedView.Resize(m.width-5, m.height)
 		m.cpuGPUUsageGraph.Resize(m.width-5, 10)
 		m.memoryUsageGraph.Resize(m.width-5, 10)
@@ -136,12 +141,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	// Define styles for layout
-	containerStyle := lipgloss.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Padding(1)
-
 	// Render components
 	cpuSection := m.cpuCombinedView.View()
 
@@ -150,28 +149,16 @@ func (m Model) View() string {
 		lipgloss.Top,
 		m.cpuGPUUsageGraph.View(),
 		fmt.Sprintf("    CPU Usage: %.2f%%   GPU Usage: %.2f%%", m.cpuUsageTotal, m.gpuUsage),
-		lipgloss.NewStyle().Render(""),
+		lipgloss.NewStyle().Border(lipgloss.HiddenBorder()).Render(""),
 		cpuSection,
 		m.memoryUsageGraph.View(),
 		fmt.Sprintf("    Memory Usage: %.2f%%   GPU Memory Usage: %.2f%%", m.memoryUsage, m.gpuMemoryUsage),
+		("\nProcess Monitor" + m.processMonitor.View()),
 		"\nPress q to quit",
 	)
 
-	processMonitorView := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderTop(true).
-		BorderLeft(true).
-		BorderRight(true).
-		BorderBottom(true).
-		Padding(0, 1).
-		Render("Process Monitor\n\n" + m.processMonitor.View())
-
 	// Render final view
-	return containerStyle.Render(lipgloss.JoinVertical(
-		lipgloss.Left,
-		content,
-		processMonitorView,
-	))
+	return content
 }
 
 func listenForMetrics[T any](metrics <-chan T) tea.Cmd {
@@ -179,3 +166,4 @@ func listenForMetrics[T any](metrics <-chan T) tea.Cmd {
 		return <-metrics
 	}
 }
+

@@ -25,6 +25,7 @@ func main() {
 	factory := infra.CollectorFactory{}
 	collectors := factory.CreateCollectors()
 
+	// Initialize the model without specifying the initial size
 	model, err := tui.InitialModel(collectors...)
 	if err != nil {
 		log.Printf("Error initializing model: %v\n", err)
@@ -32,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize the Bubble Tea program (output remains on the terminal)
+	// Initialize the Bubble Tea program
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		log.Printf("Alas, there's been an error: %v", err)
