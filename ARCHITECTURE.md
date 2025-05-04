@@ -1,11 +1,13 @@
 # Mim Architecture & Development Guide
 
 ## Overview
+
 Mim is a terminal-based user interface (TUI) application designed to monitor system resources, including CPU usage (aggregate and per core), GPU usage, and memory consumption (both system and GPU). The goal is to provide a comprehensive, single-screen view of system performance, reducing the need for multiple tools like `top`, `bashtop`, and `nvtop`.
 
 ## Technical Architecture
 
 ### Core Technologies
+
 - **Language:** Go
 - **TUI Framework:** [Bubble Tea](https://github.com/charmbracelet/bubbletea)
 - **Graphing Library:** [ntcharts](https://github.com/charmbracelet/bubbletea/tree/master/examples/charts)
@@ -15,7 +17,9 @@ Mim is a terminal-based user interface (TUI) application designed to monitor sys
   - **AMD GPU:** [`go_amd_smi`](https://github.com/amd/go_amd_smi)
 
 ### Data Flow
+
 Mim follows the **Elm Architecture**, as enforced by Bubble Tea:
+
 1. **Model:** Maintains application state.
 2. **Messages (Msg):** Events that trigger updates.
 3. **Update Function:** Processes messages and updates the model.
@@ -42,14 +46,18 @@ mim/
 ```
 
 ## AI-Accelerated Development
+
 To enhance productivity and maintainability, Mim will integrate AI-assisted development practices:
+
 - **Code Suggestions & Refactoring:** Using AI tools to streamline coding and detect potential optimizations.
 - **Automated Testing:** AI-driven test generation to improve coverage.
 - **Documentation & Code Reviews:** Leveraging AI to suggest improvements in readability and maintainability.
 - **Mock Generation:** Automating the creation of `mocks.go` files for unit tests.
 
 ## Testing Strategy
+
 Mim will follow **Clean Architecture** principles to ensure modularity and testability:
+
 - **Inversion of Control:** Dependencies will be injected via interfaces to decouple components.
 - **Private Interfaces:** Defining behavior in a way that allows easy substitution for testing.
 - **Mocking Approach:**
@@ -76,7 +84,25 @@ TODO: Revisit AMD GPU metrics collection implementation using `goamdsmi` or alte
 
 ## Next Steps
 
-1) Define the initial static UI layout (grid structure for CPU, GPU, and memory monitoring).
+1. Refine the Process Monitor:
+   - Improve sorting and filtering options for processes
+   - Enhance the symbol allocation algorithm for better distribution
+
+2. Optimize performance:
+   - Implement more efficient data update mechanisms
+   - Reduce unnecessary redraws in the UI
+
+3. Enhance GPU monitoring:
+   - Implement more detailed GPU metrics display
+   - Add support for multiple GPUs
+
+4. Improve test coverage:
+   - Develop unit tests for the new ProcessMonitor and SymbolAllocator components
+   - Implement integration tests for the entire TUI
+
+5. Documentation:
+   - Update user documentation to reflect new features and UI changes
+   - Enhance code documentation, especially for the new components
 
 Here's the proposed layout for the initial static UI:
 
@@ -126,47 +152,5 @@ Here's the proposed layout for the initial static UI:
 |                                                                  |
 +------------------------------------------------------------------+
 ```
-
-Implementation Notes:
-
-a) CPU Usage Section: ✓
-   - Implement a custom Bubble Tea component for the CPU Core Heatmap. ✓
-   - Use a grid of colored blocks, where each block represents a core and its color intensity represents usage. ✓
-   - Implement a sorting mechanism to identify and display the top 5 busiest cores. ✓
-
-b) Memory Usage Section:
-   - Use Bubble Tea's built-in components or create custom ones for the memory usage bar graphs.
-   - Implement a table or list component for displaying memory usage details.
-
-c) GPU Usage Section:
-   - Similar to the Memory Usage section, use bar graphs for GPU usage and memory.
-   - Implement a table or list component for GPU details.
-
-d) Process Monitor Section:
-   - Implement a sortable table component to display process information.
-
-e) Overall Layout:
-   - Use Bubble Tea's layout components (or create custom ones) to divide the screen into four main sections.
-   - Ensure that each section can be updated independently for better performance.
-   - Implement responsive design to fill the entire screen horizontally and support resizing.
-   - Center the CPU heatmap without changing its size.
-   - Allow CPU usage and busiest cores components to adapt their horizontal data display based on available space.
-
-2) Develop a basic Bubble Tea prototype displaying sample data.
-   - Start by implementing the overall layout structure.
-   - Add placeholder components for each section.
-   - Gradually replace placeholders with functional components, starting with CPU usage.
-
-3) Integrate real-time data collection:
-   - Implement data collection routines using gopsutil and nvml.
-   - Set up Go channels to pass system metrics updates to the Bubble Tea event loop.
-
-4) Refine UI components:
-   - Implement interactive features (e.g., sorting processes, focusing on specific CPU cores).
-   - Add color schemes and styling to improve readability and visual appeal.
-
-5) Optimize performance:
-   - Ensure smooth updates even with rapidly changing data.
-   - Implement efficient rendering techniques, especially for the CPU Core Heatmap.
 
 This document will continue to evolve as we refine the architecture and implementation details.

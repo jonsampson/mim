@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jonsampson/mim/internal/domain"
@@ -32,6 +33,7 @@ type Model struct {
 	height             int
 	cpuCombinedView    *CPUCombinedView
 	processMonitor     *ProcessMonitor
+	viewport           viewport.Model
 }
 
 func InitialModel(collectors ...interface{}) (Model, error) {
@@ -47,6 +49,7 @@ func InitialModel(collectors ...interface{}) (Model, error) {
 		processMonitor:   NewProcessMonitor(80), // Initialize with a default width
 		width:            80,                    // Set a default width
 		height:           24,                    // Set a default height
+		viewport:         viewport.New(80, 24),
 	}
 
 	collectorInitialized := false
@@ -100,6 +103,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.gpuCollector != nil {
 				m.gpuCollector.Stop()
 			}
+		case "up", "k":
+			m.viewport.LineUp(1)
+		case "down", "j":
+			m.viewport.LineDown(1)
+		case "pgup":
+			m.viewport.HalfViewUp()
+		case "pgdown":
+			m.viewport.HalfViewDown()
+		case "home":
+			m.viewport.GotoTop()
+		case "end":
+			m.viewport.GotoBottom()
 			return m, tea.Quit
 		}
 
@@ -111,6 +126,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cpuCombinedView.Resize(m.width-5, m.height)
 		m.cpuGPUUsageGraph.Resize(m.width-5, 10)
 		m.memoryUsageGraph.Resize(m.width-5, 10)
+		m.viewport.Height = m.height
+		m.viewport.Width = m.width
 	case domain.CPUMemoryMetrics:
 		m.cpuMemoryMetrics = msg
 		m.cpuUsagePerCore = msg.CPUUsagePerCore
@@ -123,6 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.processMonitor.UpdateProcesses(m.cpuMemoryMetrics.Processes, m.gpuMetrics.Processes)
 
+		m.viewport.SetContent(m.renderContent())
 		cmd = listenForMetrics(m.cpuMemoryCollector.Metrics())
 
 	case domain.GPUMetrics:
@@ -134,6 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.processMonitor.UpdateProcesses(m.cpuMemoryMetrics.Processes, m.gpuMetrics.Processes)
 
+		m.viewport.SetContent(m.renderContent())
 		cmd = listenForMetrics(m.gpuCollector.Metrics())
 	}
 
@@ -141,6 +160,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	return fmt.Sprintf("%s\n%s", m.viewport.View(), m.statusBarView())
+}
+
+// Add a new method to render the content
+func (m Model) renderContent() string {
 	// Render components
 	cpuSection := m.cpuCombinedView.View()
 
@@ -154,10 +178,8 @@ func (m Model) View() string {
 		m.memoryUsageGraph.View(),
 		fmt.Sprintf("    Memory Usage: %.2f%%   GPU Memory Usage: %.2f%%", m.memoryUsage, m.gpuMemoryUsage),
 		("\nProcess Monitor" + m.processMonitor.View()),
-		"\nPress q to quit",
 	)
 
-	// Render final view
 	return content
 }
 
@@ -167,3 +189,6 @@ func listenForMetrics[T any](metrics <-chan T) tea.Cmd {
 	}
 }
 
+func (m Model) statusBarView() string {
+	return fmt.Sprintf("Press q to quit | Scroll: ↑/↓ or mouse | %3.f%%", m.viewport.ScrollPercent()*100)
+}

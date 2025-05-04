@@ -262,7 +262,7 @@ func min(a, b int) int {
 
 func (pm *ProcessMonitor) Resize(width int) {
 	pm.width = width
-	tableWidth := width/2 - 13 // Adjusted to account for borders
+	tableWidth := width/2 - 5 // Adjusted to account for borders
 
 	updateTable := func(t *table.Model) {
 		*t = pm.createTableWithWidth(tableWidth)
