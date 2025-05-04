@@ -1,6 +1,9 @@
 package infra
 
 import (
+	"errors"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/jonsampson/mim/internal/domain"
@@ -69,15 +72,27 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 			pid := p.Pid
 			cpuPercent, err := p.CPUPercent()
 			if err != nil {
-				processesChan <- result{nil, err}
+				if !errors.Is(err, os.ErrNotExist) {
+					processesChan <- result{nil, fmt.Errorf("error getting CPU percent for PID %d: %w", pid, err)}
+					return
+				}
+				continue
 			}
 			memPercent, err := p.MemoryPercent()
 			if err != nil {
-				processesChan <- result{nil, err}
+				if !errors.Is(err, os.ErrNotExist) {
+					processesChan <- result{nil, fmt.Errorf("error getting memory percent for PID %d: %w", pid, err)}
+					return
+				}
+				continue
 			}
 			name, err := p.Name()
 			if err != nil {
-				processesChan <- result{nil, err}
+				if !errors.Is(err, os.ErrNotExist) {
+					processesChan <- result{nil, fmt.Errorf("error getting name for PID %d: %w", pid, err)}
+					return
+				}
+				continue
 			}
 
 			processInfos = append(processInfos, domain.CPUProcessInfo{
