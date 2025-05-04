@@ -1,52 +1,72 @@
 package infra
 
-import "time"
+import (
+	"fmt"
+	"sync"
+	"time"
+)
 
 type MetricsCollector[T any] interface {
-    Start()
-    Stop()
-    Metrics() <-chan T
+	Start()
+	Stop()
+	Metrics() <-chan T
 }
 
 type BaseCollector[T any] struct {
-    metrics chan T
-    stop    chan struct{}
-    getMetricsFunc func() (T, error)
+	metrics        chan T
+	stop           chan struct{}
+	getMetricsFunc func() (T, error)
+	stopped        bool
+	mu             sync.Mutex
 }
 
 func NewBaseCollector[T any](getMetricsFunc func() (T, error)) *BaseCollector[T] {
-    return &BaseCollector[T]{
-        metrics:       make(chan T),
-        stop:          make(chan struct{}),
-        getMetricsFunc: getMetricsFunc,
-    }
+	return &BaseCollector[T]{
+		metrics:        make(chan T),
+		stop:           make(chan struct{}),
+		getMetricsFunc: getMetricsFunc,
+		stopped:        false,
+	}
 }
 
 func (bc *BaseCollector[T]) Start() {
-    go bc.collectMetrics()
+	go bc.collectMetrics()
 }
 
 func (bc *BaseCollector[T]) Stop() {
-    close(bc.stop)
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	if !bc.stopped {
+		close(bc.stop)
+		close(bc.metrics)
+		bc.stopped = true
+	}
 }
 
 func (bc *BaseCollector[T]) Metrics() <-chan T {
-    return bc.metrics
+	return bc.metrics
 }
 
 func (bc *BaseCollector[T]) collectMetrics() {
-    ticker := time.NewTicker(time.Second)
-    defer ticker.Stop()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-    for {
-        select {
-        case <-ticker.C:
-            metrics, err := bc.getMetricsFunc()
-            if err == nil {
-                bc.metrics <- metrics
-            }
-        case <-bc.stop:
-            return
-        }
-    }
+	for {
+		select {
+		case <-ticker.C:
+			metrics, err := bc.getMetricsFunc()
+			if err == nil {
+				select {
+				case bc.metrics <- metrics:
+				case <-bc.stop:
+					return
+				}
+			}
+			if err != nil {
+				panic(fmt.Errorf("error collecting metrics: %v", err))
+			}
+		case <-bc.stop:
+			return
+		}
+	}
 }

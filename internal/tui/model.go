@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -36,7 +37,7 @@ type Model struct {
 	viewport           viewport.Model
 }
 
-func InitialModel(collectors ...interface{}) (Model, error) {
+func InitialModel(collectors ...any) (Model, error) {
 	model := Model{
 		cpuUsagePerCore:  []float64{},
 		cpuUsageTotal:    0,
@@ -103,6 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.gpuCollector != nil {
 				m.gpuCollector.Stop()
 			}
+			os.Exit(0)
 		case "up", "k":
 			m.viewport.LineUp(1)
 		case "down", "j":
@@ -170,10 +172,10 @@ func (m Model) renderContent() string {
 
 	// Combine columns
 	content := lipgloss.JoinVertical(
-		lipgloss.Top,
+		lipgloss.Top, "\n", // add spacing for viewport
 		m.cpuGPUUsageGraph.View(),
 		fmt.Sprintf("    CPU Usage: %.2f%%   GPU Usage: %.2f%%", m.cpuUsageTotal, m.gpuUsage),
-		lipgloss.NewStyle().Border(lipgloss.HiddenBorder()).Render(""),
+		lipgloss.NewStyle().Margin(0).Render(""),
 		cpuSection,
 		m.memoryUsageGraph.View(),
 		fmt.Sprintf("    Memory Usage: %.2f%%   GPU Memory Usage: %.2f%%", m.memoryUsage, m.gpuMemoryUsage),

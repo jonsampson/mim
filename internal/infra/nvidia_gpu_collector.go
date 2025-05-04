@@ -48,14 +48,24 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 		return domain.GPUMetrics{}, fmt.Errorf("failed to get memory info: %v", ret)
 	}
 
-	processUtilizationList, err := device.GetProcessUtilization(1000000) // 1 second
-	if err != nvml.SUCCESS {
-		return domain.GPUMetrics{}, fmt.Errorf("failed to get process utilization info: %v", err)
+	processUtilizationList, ret := device.GetProcessUtilization(1000000) // 1 second
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_FOUND {
+			// No process utilization found, which is not necessarily an error
+			processUtilizationList = []nvml.ProcessUtilizationSample{}
+		} else {
+			return domain.GPUMetrics{}, fmt.Errorf("failed to get process utilization info: %v", ret)
+		}
 	}
 
-	graphicsRunningProcesses, err := device.GetGraphicsRunningProcesses()
-	if err != nvml.SUCCESS {
-		return domain.GPUMetrics{}, fmt.Errorf("failed to get graphics running processes: %v", err)
+	graphicsRunningProcesses, ret := device.GetGraphicsRunningProcesses()
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_FOUND {
+			// No graphics processes found, which is not necessarily an error
+			graphicsRunningProcesses = []nvml.ProcessInfo{}
+		} else {
+			return domain.GPUMetrics{}, fmt.Errorf("failed to get graphics running processes: %v", ret)
+		}
 	}
 
 	processInfo := make(map[uint32]domain.GPUProcessInfo)
