@@ -38,65 +38,101 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 		return domain.GPUMetrics{}, fmt.Errorf("failed to get device handle: %v", ret)
 	}
 
-	utilization, ret := device.GetUtilizationRates()
-	if ret != nvml.SUCCESS {
-		return domain.GPUMetrics{}, fmt.Errorf("failed to get utilization rates: %v", ret)
+	type result struct {
+		value any
+		err   error
 	}
 
-	memory, ret := device.GetMemoryInfo()
-	if ret != nvml.SUCCESS {
-		return domain.GPUMetrics{}, fmt.Errorf("failed to get memory info: %v", ret)
-	}
+	utilizationChan := make(chan result)
+	memoryChan := make(chan result)
+	processesChan := make(chan result)
 
-	processUtilizationList, ret := device.GetProcessUtilization(1000000) // 1 second
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_FOUND {
-			// No process utilization found, which is not necessarily an error
-			processUtilizationList = []nvml.ProcessUtilizationSample{}
-		} else {
-			return domain.GPUMetrics{}, fmt.Errorf("failed to get process utilization info: %v", ret)
+	// Collect GPU utilization
+	go func() {
+		utilization, ret := device.GetUtilizationRates()
+		if ret != nvml.SUCCESS {
+			utilizationChan <- result{nil, fmt.Errorf("failed to get utilization rates: %v", ret)}
+			return
 		}
-	}
+		utilizationChan <- result{float64(utilization.Gpu), nil}
+	}()
 
-	graphicsRunningProcesses, ret := device.GetGraphicsRunningProcesses()
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_FOUND {
-			// No graphics processes found, which is not necessarily an error
-			graphicsRunningProcesses = []nvml.ProcessInfo{}
-		} else {
-			return domain.GPUMetrics{}, fmt.Errorf("failed to get graphics running processes: %v", ret)
+	// Collect GPU memory usage
+	go func() {
+		memory, ret := device.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			memoryChan <- result{nil, fmt.Errorf("failed to get memory info: %v", ret)}
+			return
 		}
-	}
+		memoryChan <- result{float64(memory.Used) / float64(memory.Total) * 100, nil}
+	}()
 
-	processInfo := make(map[uint32]domain.GPUProcessInfo)
-
-	for _, process := range processUtilizationList {
-		processInfo[process.Pid] = domain.GPUProcessInfo{
-			Pid:    process.Pid,
-			SmUtil: process.SmUtil,
+	// Collect process information
+	go func() {
+		processUtilizationList, ret := device.GetProcessUtilization(1000000) // 1 second
+		if ret != nvml.SUCCESS && ret != nvml.ERROR_NOT_FOUND {
+			processesChan <- result{nil, fmt.Errorf("failed to get process utilization info: %v", ret)}
+			return
 		}
-	}
 
-	for _, process := range graphicsRunningProcesses {
-		if info, exists := processInfo[process.Pid]; exists {
-			info.UsedGpuMemory = process.UsedGpuMemory
-			processInfo[process.Pid] = info
-		} else {
+		graphicsRunningProcesses, ret := device.GetGraphicsRunningProcesses()
+		if ret != nvml.SUCCESS && ret != nvml.ERROR_NOT_FOUND {
+			processesChan <- result{nil, fmt.Errorf("failed to get graphics running processes: %v", ret)}
+			return
+		}
+
+		processInfo := make(map[uint32]domain.GPUProcessInfo)
+
+		for _, process := range processUtilizationList {
 			processInfo[process.Pid] = domain.GPUProcessInfo{
-				Pid:           process.Pid,
-				UsedGpuMemory: process.UsedGpuMemory,
+				Pid:    process.Pid,
+				SmUtil: process.SmUtil,
 			}
 		}
+
+		for _, process := range graphicsRunningProcesses {
+			info, exists := processInfo[process.Pid]
+			if exists {
+				info.UsedGpuMemory = process.UsedGpuMemory
+			} else {
+				info = domain.GPUProcessInfo{
+					Pid:           process.Pid,
+					UsedGpuMemory: process.UsedGpuMemory,
+				}
+			}
+
+			processInfo[process.Pid] = info
+		}
+
+		processes := make([]domain.GPUProcessInfo, 0, len(processInfo))
+		for _, info := range processInfo {
+			processes = append(processes, info)
+		}
+
+		processesChan <- result{processes, nil}
+	}()
+
+	// Collect results and handle potential errors
+	metrics := domain.GPUMetrics{}
+	for range 3 {
+		select {
+		case r := <-utilizationChan:
+			if r.err != nil {
+				return domain.GPUMetrics{}, r.err
+			}
+			metrics.GPUUsage = r.value.(float64)
+		case r := <-memoryChan:
+			if r.err != nil {
+				return domain.GPUMetrics{}, r.err
+			}
+			metrics.GPUMemoryUsage = r.value.(float64)
+		case r := <-processesChan:
+			if r.err != nil {
+				return domain.GPUMetrics{}, r.err
+			}
+			metrics.Processes = r.value.([]domain.GPUProcessInfo)
+		}
 	}
 
-	processes := make([]domain.GPUProcessInfo, 0, len(processInfo))
-	for _, info := range processInfo {
-		processes = append(processes, info)
-	}
-
-	return domain.GPUMetrics{
-		GPUUsage:       float64(utilization.Gpu),
-		GPUMemoryUsage: float64(memory.Used) / float64(memory.Total) * 100,
-		Processes:      processes,
-	}, nil
+	return metrics, nil
 }
