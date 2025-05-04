@@ -20,78 +20,105 @@ func NewCPUMemoryCollector() *CPUMemoryCollector {
 }
 
 func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
-	// Create channels for results and errors
-	perCoreChan := make(chan []float64)
-	totalChan := make(chan float64)
-	errChan := make(chan error, 2) // Buffer of 2 to avoid goroutine leak
+	type result struct {
+		value any
+		err   error
+	}
 
-	// Collect per-core CPU usage in a goroutine
+	perCoreChan := make(chan result)
+	totalChan := make(chan result)
+	memChan := make(chan result)
+	processesChan := make(chan result)
+
+	// Collect per-core CPU usage
 	go func() {
 		cpuUsagePerCore, err := cpu.Percent(time.Second, true)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		perCoreChan <- cpuUsagePerCore
+		perCoreChan <- result{cpuUsagePerCore, err}
 	}()
 
-	// Collect total CPU usage in a goroutine
+	// Collect total CPU usage
 	go func() {
 		cpuUsageTotal, err := cpu.Percent(time.Second, false)
 		if err != nil {
-			errChan <- err
+			totalChan <- result{nil, err}
+		} else {
+			totalChan <- result{cpuUsageTotal[0], nil}
+		}
+	}()
+
+	// Get memory stats
+	go func() {
+		memStat, err := mem.VirtualMemory()
+		if err != nil {
+			memChan <- result{nil, err}
+		} else {
+			memChan <- result{memStat.UsedPercent, nil}
+		}
+	}()
+
+	// Get process information
+	go func() {
+		processes, err := process.Processes()
+		if err != nil {
+			processesChan <- result{nil, err}
 			return
 		}
-		totalChan <- cpuUsageTotal[0]
+
+		processInfos := make([]domain.CPUProcessInfo, 0, len(processes))
+		for _, p := range processes {
+			pid := p.Pid
+			cpuPercent, err := p.CPUPercent()
+			if err != nil {
+				processesChan <- result{nil, err}
+			}
+			memPercent, err := p.MemoryPercent()
+			if err != nil {
+				processesChan <- result{nil, err}
+			}
+			name, err := p.Name()
+			if err != nil {
+				processesChan <- result{nil, err}
+			}
+
+			processInfos = append(processInfos, domain.CPUProcessInfo{
+				Pid:           uint32(pid),
+				CPUPercent:    cpuPercent,
+				MemoryPercent: float64(memPercent),
+				Command:       name,
+			})
+		}
+		processesChan <- result{processInfos, nil}
 	}()
 
 	// Collect results and handle potential errors
-	var cpuUsagePerCore []float64
-	var cpuUsageTotal float64
-	for range 2 {
+	metrics := domain.CPUMemoryMetrics{}
+	var err error
+
+	for range 4 {
 		select {
-		case perCore := <-perCoreChan:
-			cpuUsagePerCore = perCore
-		case total := <-totalChan:
-			cpuUsageTotal = total
-		case err := <-errChan:
-			return domain.CPUMemoryMetrics{}, err
+		case r := <-perCoreChan:
+			if r.err != nil {
+				return domain.CPUMemoryMetrics{}, r.err
+			}
+			metrics.CPUUsagePerCore = r.value.([]float64)
+		case r := <-totalChan:
+			if r.err != nil {
+				return domain.CPUMemoryMetrics{}, r.err
+			}
+			metrics.CPUUsageTotal = r.value.(float64)
+		case r := <-memChan:
+			if r.err != nil {
+				return domain.CPUMemoryMetrics{}, r.err
+			}
+			metrics.MemoryUsage = r.value.(float64)
+		case r := <-processesChan:
+			if r.err != nil {
+				return domain.CPUMemoryMetrics{}, r.err
+			}
+			metrics.Processes = r.value.([]domain.CPUProcessInfo)
 		}
 	}
 
-	// Get memory stats
-	memStat, err := mem.VirtualMemory()
-	if err != nil {
-		return domain.CPUMemoryMetrics{}, err
-	}
-
-	// Get process information
-	processes, err := process.Processes()
-	if err != nil {
-		return domain.CPUMemoryMetrics{}, err
-	}
-
-	metrics := domain.CPUMemoryMetrics{
-		CPUUsagePerCore: cpuUsagePerCore,
-		CPUUsageTotal:   cpuUsageTotal,
-		MemoryUsage:     memStat.UsedPercent,
-		Processes:       make([]domain.CPUProcessInfo, 0, len(processes)),
-	}
-
-	for _, p := range processes {
-		pid := p.Pid
-		cpuPercent, _ := p.CPUPercent()
-		memPercent, _ := p.MemoryPercent()
-		name, _ := p.Name()
-
-		metrics.Processes = append(metrics.Processes, domain.CPUProcessInfo{
-			Pid:           uint32(pid),
-			CPUPercent:    cpuPercent,
-			MemoryPercent: float64(memPercent),
-			Command:       name,
-		})
-	}
-
 	// Return the collected metrics
-	return metrics, nil
+	return metrics, err
 }
