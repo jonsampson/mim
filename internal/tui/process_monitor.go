@@ -34,7 +34,7 @@ func NewProcessMonitor(width int) *ProcessMonitor {
 	pm := &ProcessMonitor{
 		width:           width,
 		symbolAllocator: NewSymbolAllocator([]rune{'▣', '▤', '▥', '▦', '▧', '▨', '▩', '▪', '▫', '▬', '◆', '◇', '○', '●', '◉', '◍', '◎', '◌', '◔', '◕'}),
-		borderStyle:     lipgloss.NewStyle().Border(lipgloss.HiddenBorder()),
+		borderStyle:     lipgloss.NewStyle().Padding(0).Margin(0),
 	}
 
 	pm.symbolColors = createSymbolColors(len(pm.symbolAllocator.symbols))
@@ -140,7 +140,7 @@ func (pm *ProcessMonitor) View() string {
 
 	view := lipgloss.JoinVertical(lipgloss.Left, topRow, bottomRow)
 
-	return pm.borderStyle.Render(view)
+	return lipgloss.NewStyle().Border(lipgloss.HiddenBorder()).Render(view)
 }
 
 func (pm *ProcessMonitor) UpdateProcesses(cpuProcesses []domain.CPUProcessInfo, gpuProcesses []domain.GPUProcessInfo) {
@@ -180,7 +180,7 @@ func (pm *ProcessMonitor) UpdateProcesses(cpuProcesses []domain.CPUProcessInfo, 
 
 func (pm *ProcessMonitor) getRows(processes []domain.CPUProcessInfo, getValue func(domain.CPUProcessInfo) float64) []table.Row {
 	rows := []table.Row{}
-	for i := 0; i < min(5, len(processes)); i++ {
+	for i := range min(5, len(processes)) {
 		p := processes[i]
 		sym, _ := pm.symbolAllocator.AccessPID(int(p.Pid))
 		// debugInfo := fmt.Sprintf("S:%c C:%d", sym, colorIndex)
@@ -262,7 +262,7 @@ func min(a, b int) int {
 
 func (pm *ProcessMonitor) Resize(width int) {
 	pm.width = width
-	tableWidth := width/2 - 5 // Adjusted to account for borders
+	tableWidth := width/2 - 4 // Adjusted to account for borders
 
 	updateTable := func(t *table.Model) {
 		*t = pm.createTableWithWidth(tableWidth)

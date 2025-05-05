@@ -31,11 +31,16 @@ type CPUGPUUsageGraph struct {
 func NewCPUGPUUsageGraph() *CPUGPUUsageGraph {
 	slc := streamlinechart.New(10, 10,
 		streamlinechart.WithYRange(0, 100),
+		streamlinechart.WithXYSteps(1, 2),
 		streamlinechart.WithAxesStyles(axisStyle, labelStyle),
 		streamlinechart.WithStyles(runes.ThinLineStyle, graphLineStyleCPU),
 		streamlinechart.WithDataSetStyles(gpuDataSet, runes.ThinLineStyle, graphLineStyleGPU),
 		streamlinechart.WithDataSetStyles(cpuDataSet, runes.ThinLineStyle, graphLineStyleCPU),
 	)
+	slc.XLabelFormatter = func(int, float64) string {
+		return " "
+	}
+	slc.SetViewYRange(0, 100)
 
 	slc.DrawXYAxisAndLabel()
 
@@ -44,7 +49,7 @@ func NewCPUGPUUsageGraph() *CPUGPUUsageGraph {
 	}
 }
 
-func (g *CPUGPUUsageGraph) Update(msg interface{}) {
+func (g *CPUGPUUsageGraph) Update(msg any) {
 	switch msg := msg.(type) {
 	case domain.CPUMemoryMetrics:
 		g.updateCPU(msg)
@@ -69,3 +74,4 @@ func (g *CPUGPUUsageGraph) View() string {
 func (g *CPUGPUUsageGraph) Resize(width, height int) {
 	g.slc.Resize(width, height)
 }
+

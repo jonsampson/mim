@@ -179,7 +179,7 @@ func (m Model) renderContent() string {
 		cpuSection,
 		m.memoryUsageGraph.View(),
 		fmt.Sprintf("    Memory Usage: %.2f%%   GPU Memory Usage: %.2f%%", m.memoryUsage, m.gpuMemoryUsage),
-		("\nProcess Monitor" + m.processMonitor.View()),
+		m.processMonitor.View(),
 	)
 
 	return content
