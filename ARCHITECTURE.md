@@ -36,9 +36,14 @@ mim/
 │   └── ...
 ├── internal/     # Core application logic
 │   ├── domain/   # Entities and interfaces (e.g., Process, Metrics, Repository)
+│   │             #   - `CPUProcessInfo` and `GPUProcessInfo` now include a `User` field.
 │   ├── service/  # Business logic (e.g., MetricsCollector, ProcessAnalyzer)
 │   ├── tui/      # UI components (Bubble Tea model, views, messages)
+│   │             #   - `process_monitor.go` now displays the process `User` in its tables.
 │   ├── infra/    # External dependencies (e.g., gopsutil, nvml, go_amd_smi wrappers)
+│   │             #   - Collectors (`cpu_memory_collector.go`, `nvidia_gpu_collector.go`)
+│   │             #     now fetch process user information, with a fallback to UID
+│   │             #     for "unknown userid" errors.
 │   └── mocks/    # Mocks for testing
 ├── pkg/          # Potential reusable components
 ├── scripts/      # Dev and build scripts
@@ -85,8 +90,9 @@ TODO: Revisit AMD GPU metrics collection implementation using `goamdsmi` or alte
 ## Next Steps
 
 1. Refine the Process Monitor:
-   - Improve sorting and filtering options for processes
-   - Enhance the symbol allocation algorithm for better distribution
+   - **[Partially Addressed]** Display more process information (User field added).
+   - Improve sorting and filtering options for processes (e.g., by user).
+   - Enhance the symbol allocation algorithm for better distribution.
 
 2. Optimize performance:
    - Implement more efficient data update mechanisms
@@ -135,12 +141,12 @@ Here's the proposed layout for the initial static UI:
 |                                                                  |
 | [Top Processes Table]                                            |
 |                                                                  |
-| PID    CPU%    MEM%    Command                                   |
-| 1234   25.0    10.2    process1                                  |
-| 5678   15.5     8.7    process2                                  |
-| 9012   10.2     5.3    process3                                  |
-| 3456    8.7     4.1    process4                                  |
-| 7890    7.3     3.8    process5                                  |
+| PID    User        CPU%    MEM%    Command                       |
+| 1234   jsampson    25.0    10.2    process1                      |
+| 5678   root        15.5     8.7    process2                      |
+| 9012   1000        10.2     5.3    process3 (uid fallback)       |
+| 3456   another     8.7     4.1    process4                      |
+| 7890   jsampson    7.3     3.8    process5                      |
 |                                                                  |
 +------------------------------------------------------------------+
 |                         GPU Details                              |
