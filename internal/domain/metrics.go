@@ -12,6 +12,7 @@ type CPUProcessInfo struct {
 	CPUPercent    float64
 	MemoryPercent float64
 	Command       string
+	User          string
 }
 
 type GPUMetrics struct {
@@ -24,4 +25,5 @@ type GPUProcessInfo struct {
 	Pid           uint32
 	SmUtil        uint32
 	UsedGpuMemory uint64
+	User          string
 }

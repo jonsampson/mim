@@ -94,12 +94,22 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 				}
 				continue
 			}
+			username, err := p.Username()
+			if err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					processesChan <- result{nil, fmt.Errorf("error getting username for PID %d: %w", pid, err)}
+					return
+				}
+				// If the process doesn't exist anymore, we can't get the username, so set it to empty.
+				username = ""
+			}
 
 			processInfos = append(processInfos, domain.CPUProcessInfo{
 				Pid:           uint32(pid),
 				CPUPercent:    cpuPercent,
 				MemoryPercent: float64(memPercent),
 				Command:       name,
+				User:          username,
 			})
 		}
 		processesChan <- result{processInfos, nil}

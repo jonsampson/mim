@@ -2,9 +2,11 @@ package infra
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/jonsampson/mim/internal/domain"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 type NvidiaGPUCollector struct {
@@ -106,6 +108,25 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 
 		processes := make([]domain.GPUProcessInfo, 0, len(processInfo))
 		for _, info := range processInfo {
+			proc, err := process.NewProcess(int32(info.Pid))
+			if err != nil {
+				// Process might have terminated, log or handle as needed
+				// For now, we'll skip adding user info if process lookup fails
+				processes = append(processes, info)
+				continue
+			}
+			username, err := proc.Username()
+			if err != nil {
+				// Handle error getting username, e.g., process terminated
+				// For now, set to empty or a placeholder
+				username = ""
+				// Check if the error is os.ErrNotExist, if so, the process likely terminated
+				// In other cases, you might want to log the error or handle it differently
+				if !os.IsNotExist(err) {
+					fmt.Printf("Error getting username for PID %d: %v\n", info.Pid, err)
+				}
+			}
+			info.User = username
 			processes = append(processes, info)
 		}
 
