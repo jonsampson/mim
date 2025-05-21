@@ -3,6 +3,8 @@ package infra
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/jonsampson/mim/internal/domain"
@@ -117,13 +119,21 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 			}
 			username, err := proc.Username()
 			if err != nil {
-				// Handle error getting username, e.g., process terminated
-				// For now, set to empty or a placeholder
-				username = ""
-				// Check if the error is os.ErrNotExist, if so, the process likely terminated
-				// In other cases, you might want to log the error or handle it differently
-				if !os.IsNotExist(err) {
-					fmt.Printf("Error getting username for PID %d: %v\n", info.Pid, err)
+				if strings.Contains(err.Error(), "unknown userid") {
+					uids, uidsErr := proc.Uids()
+					if uidsErr != nil || len(uids) == 0 {
+						username = ""
+					} else {
+						username = strconv.FormatInt(int64(uids[0]), 10)
+					}
+				} else if !os.IsNotExist(err) {
+					// Log non-critical errors or handle them as needed, but don't stop the process collection.
+					// For now, set username to empty for these errors as well.
+					// Consider logging: fmt.Printf("Error getting username for PID %d: %v. Setting to empty.\n", info.Pid, err)
+					username = ""
+				} else {
+					// If the process doesn't exist anymore (os.ErrNotExist), set username to empty.
+					username = ""
 				}
 			}
 			info.User = username

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jonsampson/mim/internal/domain"
@@ -96,12 +98,22 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 			}
 			username, err := p.Username()
 			if err != nil {
-				if !errors.Is(err, os.ErrNotExist) {
-					processesChan <- result{nil, fmt.Errorf("error getting username for PID %d: %w", pid, err)}
-					return
+				if strings.Contains(err.Error(), "unknown userid") {
+					uids, uidsErr := p.Uids()
+					if uidsErr != nil || len(uids) == 0 {
+						username = ""
+					} else {
+						username = strconv.FormatInt(int64(uids[0]), 10)
+					}
+				} else if !errors.Is(err, os.ErrNotExist) {
+					// Log non-critical errors or handle them as needed, but don't stop the process collection.
+					// For now, set username to empty for these errors as well.
+					// Consider logging: fmt.Printf("Error getting username for PID %d: %v. Setting to empty.\n", pid, err)
+					username = ""
+				} else {
+					// If the process doesn't exist anymore (os.ErrNotExist), set username to empty.
+					username = ""
 				}
-				// If the process doesn't exist anymore, we can't get the username, so set it to empty.
-				username = ""
 			}
 
 			processInfos = append(processInfos, domain.CPUProcessInfo{
