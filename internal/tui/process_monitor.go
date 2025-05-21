@@ -27,6 +27,7 @@ type ProcessMonitor struct {
 const (
 	symbolWidth = 6
 	pidWidth    = 12
+	userWidth   = 12
 	metricWidth = 12
 )
 
@@ -51,10 +52,11 @@ func (pm *ProcessMonitor) createTable() table.Model {
 }
 
 func (pm *ProcessMonitor) createTableWithWidth(width int) table.Model {
-	commandWidth := (width - symbolWidth - pidWidth - metricWidth)
+	commandWidth := (width - symbolWidth - pidWidth - userWidth - metricWidth)
 	columns := []table.Column{
 		{Title: fmt.Sprintf("%6s", "Key"), Width: symbolWidth},
 		{Title: fmt.Sprintf("%12s", "PID"), Width: pidWidth},
+		{Title: fmt.Sprintf("%12s", "User"), Width: userWidth},
 		{Title: fmt.Sprintf("%10s", "%"), Width: metricWidth},
 		{Title: "Command", Width: commandWidth},
 	}
@@ -148,11 +150,6 @@ func (pm *ProcessMonitor) UpdateProcesses(cpuProcesses []domain.CPUProcessInfo, 
 	pm.gpuProcesses = gpuProcesses
 
 	// Create a map of PID to Command from CPU processes
-	pidToCommand := make(map[uint32]string)
-	for _, p := range pm.cpuProcesses {
-		pidToCommand[p.Pid] = p.Command
-	}
-
 	// Update CPU table
 	sort.Slice(pm.cpuProcesses, func(i, j int) bool {
 		return pm.cpuProcesses[i].CPUPercent > pm.cpuProcesses[j].CPUPercent
@@ -165,17 +162,23 @@ func (pm *ProcessMonitor) UpdateProcesses(cpuProcesses []domain.CPUProcessInfo, 
 	})
 	pm.memTable.SetRows(pm.getRows(pm.cpuProcesses, func(p domain.CPUProcessInfo) float64 { return p.MemoryPercent }))
 
+	// Create a map of PID to Command from CPU processes for GPU command lookup
+	pidToCommandForGPU := make(map[uint32]string)
+	for _, p := range pm.cpuProcesses {
+		pidToCommandForGPU[p.Pid] = p.Command
+	}
+
 	// Update GPU table
 	sort.Slice(pm.gpuProcesses, func(i, j int) bool {
 		return pm.gpuProcesses[i].SmUtil > pm.gpuProcesses[j].SmUtil
 	})
-	pm.gpuTable.SetRows(pm.getGPURows(pm.gpuProcesses, pidToCommand, func(p domain.GPUProcessInfo) float64 { return float64(p.SmUtil) }))
+	pm.gpuTable.SetRows(pm.getGPURows(pm.gpuProcesses, pidToCommandForGPU, func(p domain.GPUProcessInfo) float64 { return float64(p.SmUtil) }))
 
 	// Update GPU MEM table
 	sort.Slice(pm.gpuProcesses, func(i, j int) bool {
 		return pm.gpuProcesses[i].UsedGpuMemory > pm.gpuProcesses[j].UsedGpuMemory
 	})
-	pm.gpuMemTable.SetRows(pm.getGPURows(pm.gpuProcesses, pidToCommand, func(p domain.GPUProcessInfo) float64 { return float64(p.UsedGpuMemory) / (1024 * 1024) }))
+	pm.gpuMemTable.SetRows(pm.getGPURows(pm.gpuProcesses, pidToCommandForGPU, func(p domain.GPUProcessInfo) float64 { return float64(p.UsedGpuMemory) / (1024 * 1024) }))
 }
 
 func (pm *ProcessMonitor) getRows(processes []domain.CPUProcessInfo, getValue func(domain.CPUProcessInfo) float64) []table.Row {
@@ -187,6 +190,7 @@ func (pm *ProcessMonitor) getRows(processes []domain.CPUProcessInfo, getValue fu
 		rows = append(rows, table.Row{
 			fmt.Sprintf("%6c", sym),
 			fmt.Sprintf("%12s", strconv.FormatUint(uint64(p.Pid), 10)),
+			fmt.Sprintf("%12s", p.User),
 			fmt.Sprintf("%10.1f", getValue(p)),
 			p.Command,
 		})
@@ -200,10 +204,11 @@ func (pm *ProcessMonitor) getGPURows(processes []domain.GPUProcessInfo, pidToCom
 		p := processes[i]
 		sym, _ := pm.symbolAllocator.AccessPID(int(p.Pid))
 		// debugInfo := fmt.Sprintf("S:%c C:%d", sym, colorIndex)
-		command := pidToCommand[p.Pid]
+		command := pidToCommand[p.Pid] // Command is still looked up
 		rows = append(rows, table.Row{
 			fmt.Sprintf("%6c", sym),
 			fmt.Sprintf("%12s", strconv.FormatUint(uint64(p.Pid), 10)),
+			fmt.Sprintf("%12s", p.User), // User is directly from p.User
 			fmt.Sprintf("%10.1f", getValue(p)),
 			command,
 		})
