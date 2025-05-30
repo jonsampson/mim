@@ -3,12 +3,13 @@ package tui
 import (
 	"fmt"
 	"sort"
-	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jonsampson/mim/internal/domain"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 type ProcessMonitor struct {
@@ -22,6 +23,9 @@ type ProcessMonitor struct {
 	symbolColors    []lipgloss.Style
 	width           int
 	borderStyle     lipgloss.Style
+	// Pre-allocated buffers for string formatting
+	rowBuffer       []table.Row
+	strBuilder      strings.Builder
 }
 
 const (
@@ -36,6 +40,7 @@ func NewProcessMonitor(width int) *ProcessMonitor {
 		width:           width,
 		symbolAllocator: NewSymbolAllocator([]rune{'▣', '▤', '▥', '▦', '▧', '▨', '▩', '▪', '▫', '▬', '◆', '◇', '○', '●', '◉', '◍', '◎', '◌', '◔', '◕'}),
 		borderStyle:     lipgloss.NewStyle().Padding(0).Margin(0),
+		rowBuffer:       make([]table.Row, 0, 5), // Pre-allocate for 5 rows
 	}
 
 	pm.symbolColors = createSymbolColors(len(pm.symbolAllocator.symbols))
@@ -54,10 +59,10 @@ func (pm *ProcessMonitor) createTable() table.Model {
 func (pm *ProcessMonitor) createTableWithWidth(width int) table.Model {
 	commandWidth := (width - symbolWidth - pidWidth - userWidth - metricWidth)
 	columns := []table.Column{
-		{Title: fmt.Sprintf("%6s", "Key"), Width: symbolWidth},
-		{Title: fmt.Sprintf("%12s", "PID"), Width: pidWidth},
-		{Title: fmt.Sprintf("%12s", "User"), Width: userWidth},
-		{Title: fmt.Sprintf("%10s", "%"), Width: metricWidth},
+		{Title: "   Key", Width: symbolWidth},
+		{Title: "         PID", Width: pidWidth},
+		{Title: "        User", Width: userWidth},
+		{Title: "         %", Width: metricWidth},
 		{Title: "Command", Width: commandWidth},
 	}
 
@@ -89,10 +94,23 @@ func (pm *ProcessMonitor) createTableWithWidth(width int) table.Model {
 
 func createSymbolColors(count int) []lipgloss.Style {
 	colors := make([]lipgloss.Style, count)
+	hexBuf := make([]byte, 7) // "#RRGGBB"
+	hexBuf[0] = '#'
+	
 	for i := range colors {
 		hue := float64(i) / float64(count) * 360.0
 		r, g, b := hslToRGB(hue, 1.0, 0.5)
-		colors[i] = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", r, g, b)))
+		
+		// Manual hex formatting to avoid fmt.Sprintf
+		hexChars := "0123456789abcdef"
+		hexBuf[1] = hexChars[r>>4]
+		hexBuf[2] = hexChars[r&0xf]
+		hexBuf[3] = hexChars[g>>4]
+		hexBuf[4] = hexChars[g&0xf]
+		hexBuf[5] = hexChars[b>>4]
+		hexBuf[6] = hexChars[b&0xf]
+		
+		colors[i] = lipgloss.NewStyle().Foreground(lipgloss.Color(string(hexBuf)))
 	}
 	return colors
 }
@@ -149,32 +167,31 @@ func (pm *ProcessMonitor) UpdateProcesses(cpuProcesses []domain.CPUProcessInfo, 
 	pm.cpuProcesses = cpuProcesses
 	pm.gpuProcesses = gpuProcesses
 
-	// Create a map of PID to Command from CPU processes
-	// Update CPU table
-	sort.Slice(pm.cpuProcesses, func(i, j int) bool {
-		return pm.cpuProcesses[i].CPUPercent > pm.cpuProcesses[j].CPUPercent
-	})
-	pm.cpuTable.SetRows(pm.getRows(pm.cpuProcesses, func(p domain.CPUProcessInfo) float64 { return p.CPUPercent }))
-
-	// Update MEM table
-	sort.Slice(pm.cpuProcesses, func(i, j int) bool {
-		return pm.cpuProcesses[i].MemoryPercent > pm.cpuProcesses[j].MemoryPercent
-	})
-	pm.memTable.SetRows(pm.getRows(pm.cpuProcesses, func(p domain.CPUProcessInfo) float64 { return p.MemoryPercent }))
-
 	// Create a map of PID to Command from CPU processes for GPU command lookup
 	pidToCommandForGPU := make(map[uint32]string)
 	for _, p := range pm.cpuProcesses {
 		pidToCommandForGPU[p.Pid] = p.Command
 	}
 
-	// Update GPU table
+	// Update CPU table - sort by CPU%
+	sort.Slice(pm.cpuProcesses, func(i, j int) bool {
+		return pm.cpuProcesses[i].CPUPercent > pm.cpuProcesses[j].CPUPercent
+	})
+	pm.cpuTable.SetRows(pm.getRows(pm.cpuProcesses, func(p domain.CPUProcessInfo) float64 { return p.CPUPercent }))
+
+	// Update MEM table - sort by Memory%
+	sort.Slice(pm.cpuProcesses, func(i, j int) bool {
+		return pm.cpuProcesses[i].MemoryPercent > pm.cpuProcesses[j].MemoryPercent
+	})
+	pm.memTable.SetRows(pm.getRows(pm.cpuProcesses, func(p domain.CPUProcessInfo) float64 { return p.MemoryPercent }))
+
+	// Update GPU table - sort by GPU%
 	sort.Slice(pm.gpuProcesses, func(i, j int) bool {
 		return pm.gpuProcesses[i].SmUtil > pm.gpuProcesses[j].SmUtil
 	})
 	pm.gpuTable.SetRows(pm.getGPURows(pm.gpuProcesses, pidToCommandForGPU, func(p domain.GPUProcessInfo) float64 { return float64(p.SmUtil) }))
 
-	// Update GPU MEM table
+	// Update GPU MEM table - sort by GPU Memory
 	sort.Slice(pm.gpuProcesses, func(i, j int) bool {
 		return pm.gpuProcesses[i].UsedGpuMemory > pm.gpuProcesses[j].UsedGpuMemory
 	})
@@ -182,38 +199,80 @@ func (pm *ProcessMonitor) UpdateProcesses(cpuProcesses []domain.CPUProcessInfo, 
 }
 
 func (pm *ProcessMonitor) getRows(processes []domain.CPUProcessInfo, getValue func(domain.CPUProcessInfo) float64) []table.Row {
-	rows := []table.Row{}
+	// Reuse the pre-allocated buffer
+	pm.rowBuffer = pm.rowBuffer[:0]
+	
 	for i := range min(5, len(processes)) {
 		p := processes[i]
 		sym, _ := pm.symbolAllocator.AccessPID(int(p.Pid))
-		// debugInfo := fmt.Sprintf("S:%c C:%d", sym, colorIndex)
-		rows = append(rows, table.Row{
-			fmt.Sprintf("%6c", sym),
-			fmt.Sprintf("%12s", strconv.FormatUint(uint64(p.Pid), 10)),
-			fmt.Sprintf("%12s", p.User),
-			fmt.Sprintf("%10.1f", getValue(p)),
+		
+		// Get username if not already populated (expensive operation)
+		user := p.User
+		if user == "" {
+			if proc, err := process.NewProcess(int32(p.Pid)); err == nil {
+				if username, err := proc.Username(); err == nil {
+					user = username
+				} else {
+					user = "?"
+				}
+			} else {
+				user = "?"
+			}
+		}
+		
+		pm.rowBuffer = append(pm.rowBuffer, table.Row{
+			pm.formatSymbol(sym),
+			pm.formatPID(p.Pid),
+			pm.formatUser(user),
+			pm.formatMetric(getValue(p)),
 			p.Command,
 		})
 	}
-	return rows
+	return pm.rowBuffer
 }
 
 func (pm *ProcessMonitor) getGPURows(processes []domain.GPUProcessInfo, pidToCommand map[uint32]string, getValue func(domain.GPUProcessInfo) float64) []table.Row {
-	rows := []table.Row{}
+	// Reuse the pre-allocated buffer
+	pm.rowBuffer = pm.rowBuffer[:0]
+	
 	for i := range min(5, len(processes)) {
 		p := processes[i]
 		sym, _ := pm.symbolAllocator.AccessPID(int(p.Pid))
-		// debugInfo := fmt.Sprintf("S:%c C:%d", sym, colorIndex)
-		command := pidToCommand[p.Pid] // Command is still looked up
-		rows = append(rows, table.Row{
-			fmt.Sprintf("%6c", sym),
-			fmt.Sprintf("%12s", strconv.FormatUint(uint64(p.Pid), 10)),
-			fmt.Sprintf("%12s", p.User), // User is directly from p.User
-			fmt.Sprintf("%10.1f", getValue(p)),
+		command := pidToCommand[p.Pid]
+		
+		pm.rowBuffer = append(pm.rowBuffer, table.Row{
+			pm.formatSymbol(sym),
+			pm.formatPID(p.Pid),
+			pm.formatUser(p.User),
+			pm.formatMetric(getValue(p)),
 			command,
 		})
 	}
-	return rows
+	return pm.rowBuffer
+}
+
+
+// Formatting helper methods to reduce allocations
+func (pm *ProcessMonitor) formatSymbol(sym rune) string {
+	pm.strBuilder.Reset()
+	pm.strBuilder.WriteString("     ")
+	pm.strBuilder.WriteRune(sym)
+	return pm.strBuilder.String()
+}
+
+func (pm *ProcessMonitor) formatPID(pid uint32) string {
+	return fmt.Sprintf("%12d", pid)
+}
+
+func (pm *ProcessMonitor) formatUser(user string) string {
+	if len(user) > 12 {
+		user = user[:12]
+	}
+	return fmt.Sprintf("%12s", user)
+}
+
+func (pm *ProcessMonitor) formatMetric(value float64) string {
+	return fmt.Sprintf("%10.1f", value)
 }
 
 // Helper function to convert HSL to RGB

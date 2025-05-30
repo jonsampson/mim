@@ -1,11 +1,6 @@
 package infra
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jonsampson/mim/internal/domain"
@@ -16,10 +11,15 @@ import (
 
 type CPUMemoryCollector struct {
 	*BaseCollector[domain.CPUMemoryMetrics]
+	lastProcessTimes map[int32]*cpu.TimesStat
+	lastCollectTime  time.Time
 }
 
 func NewCPUMemoryCollector() *CPUMemoryCollector {
-	collector := &CPUMemoryCollector{}
+	collector := &CPUMemoryCollector{
+		lastProcessTimes: make(map[int32]*cpu.TimesStat),
+		lastCollectTime:  time.Now(),
+	}
 	collector.BaseCollector = NewBaseCollector(collector.getMetrics)
 	return collector
 }
@@ -63,68 +63,73 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 
 	// Get process information
 	go func() {
-		processes, err := process.Processes()
+		currentTime := time.Now()
+		deltaTime := currentTime.Sub(c.lastCollectTime).Seconds()
+		
+		// Get all PIDs
+		pids, err := process.Pids()
 		if err != nil {
 			processesChan <- result{nil, err}
 			return
 		}
-
-		processInfos := make([]domain.CPUProcessInfo, 0, len(processes))
-		for _, p := range processes {
-			pid := p.Pid
-			cpuPercent, err := p.CPUPercent()
+		
+		// Collect CPU times and memory for ALL processes
+		allProcessInfos := make([]domain.CPUProcessInfo, 0, len(pids))
+		newProcessTimes := make(map[int32]*cpu.TimesStat)
+		
+		for _, pid := range pids {
+			proc, err := process.NewProcess(pid)
 			if err != nil {
-				if !errors.Is(err, os.ErrNotExist) {
-					processesChan <- result{nil, fmt.Errorf("error getting CPU percent for PID %d: %w", pid, err)}
-					return
-				}
 				continue
 			}
-			memPercent, err := p.MemoryPercent()
+			
+			// Get current CPU times (single /proc read per process)
+			currentTimes, err := proc.Times()
 			if err != nil {
-				if !errors.Is(err, os.ErrNotExist) {
-					processesChan <- result{nil, fmt.Errorf("error getting memory percent for PID %d: %w", pid, err)}
-					return
-				}
 				continue
 			}
-			name, err := p.Name()
-			if err != nil {
-				if !errors.Is(err, os.ErrNotExist) {
-					processesChan <- result{nil, fmt.Errorf("error getting name for PID %d: %w", pid, err)}
-					return
-				}
+			
+			// Store for next iteration
+			newProcessTimes[pid] = currentTimes
+			
+			currentCPUTime := currentTimes.User + currentTimes.System
+			
+			// Get process name for filtering
+			name, _ := proc.Name()
+			// Skip kernel threads
+			if len(name) > 0 && name[0] == '[' {
 				continue
 			}
-			username, err := p.Username()
-			if err != nil {
-				if strings.Contains(err.Error(), "unknown userid") {
-					uids, uidsErr := p.Uids()
-					if uidsErr != nil || len(uids) == 0 {
-						username = ""
-					} else {
-						username = strconv.FormatInt(int64(uids[0]), 10)
-					}
-				} else if !errors.Is(err, os.ErrNotExist) {
-					// Log non-critical errors or handle them as needed, but don't stop the process collection.
-					// For now, set username to empty for these errors as well.
-					// Consider logging: fmt.Printf("Error getting username for PID %d: %v. Setting to empty.\n", pid, err)
-					username = ""
-				} else {
-					// If the process doesn't exist anymore (os.ErrNotExist), set username to empty.
-					username = ""
-				}
+			
+			// Calculate CPU percentage from delta (if we have previous data)
+			var cpuPercent float64
+			if lastTimes, exists := c.lastProcessTimes[pid]; exists && deltaTime > 0 {
+				lastCPUTime := lastTimes.User + lastTimes.System
+				cpuDelta := currentCPUTime - lastCPUTime
+				cpuPercent = (cpuDelta / deltaTime) * 100.0
 			}
-
-			processInfos = append(processInfos, domain.CPUProcessInfo{
+			
+			// Get memory percentage for all processes (needed for proper sorting)
+			memPercent, err := proc.MemoryPercent()
+			if err != nil {
+				continue
+			}
+			
+			// No username lookup here - will be done by ProcessMonitor for displayed processes only
+			allProcessInfos = append(allProcessInfos, domain.CPUProcessInfo{
 				Pid:           uint32(pid),
 				CPUPercent:    cpuPercent,
 				MemoryPercent: float64(memPercent),
 				Command:       name,
-				User:          username,
+				User:          "", // Will be filled in by ProcessMonitor for top processes
 			})
 		}
-		processesChan <- result{processInfos, nil}
+		
+		// Update stored times and timestamp
+		c.lastProcessTimes = newProcessTimes
+		c.lastCollectTime = currentTime
+		
+		processesChan <- result{allProcessInfos, nil}
 	}()
 
 	// Collect results and handle potential errors

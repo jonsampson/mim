@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -104,7 +103,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.gpuCollector != nil {
 				m.gpuCollector.Stop()
 			}
-			os.Exit(0)
+			return m, tea.Quit
 		case "up", "k":
 			m.viewport.LineUp(1)
 		case "down", "j":

@@ -17,13 +17,23 @@ type BusiestCores struct {
 	width           int
 	height          int
 	squareDimension int
+	// Cached styles
+	labelStyle  lipgloss.Style
+	lowStyle    lipgloss.Style    // usage <= 50%
+	mediumStyle lipgloss.Style    // 50% < usage <= 80%
+	highStyle   lipgloss.Style    // usage > 80%
 }
 
 // NewBusiestCores initializes a BusiestCores instance.
 func NewBusiestCores() *BusiestCores {
 	return &BusiestCores{
-		coreUsages: make([]float64, 0),
-		coreCharts: make(map[int]*sparkline.Model),
+		coreUsages:  make([]float64, 0),
+		coreCharts:  make(map[int]*sparkline.Model),
+		// Initialize cached styles once
+		labelStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("4")),
+		lowStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("6")),    // Cyan
+		mediumStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),    // Yellow
+		highStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("1")),    // Red
 	}
 }
 
@@ -86,16 +96,17 @@ func (b *BusiestCores) renderCore(coreID int) string {
 	chart.DrawBraille()
 	usage := b.coreUsages[coreID]
 
-	color := lipgloss.Color("6") // Cyan
-	if usage > 50 {
-		color = lipgloss.Color("3") // Yellow
-	}
+	// Select appropriate cached style based on usage
+	var style lipgloss.Style
 	if usage > 80 {
-		color = lipgloss.Color("1") // Red
+		style = b.highStyle
+	} else if usage > 50 {
+		style = b.mediumStyle
+	} else {
+		style = b.lowStyle
 	}
 
-	style := lipgloss.NewStyle().Foreground(color)
-	coreLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("4")).Render(fmt.Sprintf("@%2d", coreID))
+	coreLabel := b.labelStyle.Render(fmt.Sprintf("@%2d", coreID))
 
 	return fmt.Sprintf("%s %s %3.0f%%",
 		coreLabel,

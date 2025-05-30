@@ -47,7 +47,7 @@ func NewMemoryUsageGraph() *MemoryUsageGraph {
 	}
 }
 
-func (g *MemoryUsageGraph) Update(msg interface{}) {
+func (g *MemoryUsageGraph) Update(msg any) {
 	switch msg := msg.(type) {
 	case domain.CPUMemoryMetrics:
 		g.updateSystemMemory(msg)
