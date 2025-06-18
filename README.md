@@ -2,9 +2,7 @@
 
 **Mim (Monitoring is Mim)** is a terminal-based user interface (TUI) application designed to provide a comprehensive, single-screen view of your system's resources. It helps you monitor CPU usage (aggregate and per-core), GPU usage (currently NVIDIA, with plans for AMD), memory consumption (system and GPU), and running processes.
 
-<!-- Placeholder for Hero Image/Screenshot -->
-<!-- TODO: Replace this comment with an actual screenshot of Mim in action -->
-**[Screenshot Placeholder: A visually appealing screenshot of the Mim TUI showcasing its various panels like CPU graphs, process list, and GPU stats.]**
+![Mim TUI Screenshot](assets/mim.webp)
 
 ## Features
 
