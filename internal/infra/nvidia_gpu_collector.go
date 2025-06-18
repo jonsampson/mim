@@ -2,6 +2,7 @@ package infra
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -85,6 +86,12 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 			return
 		}
 
+		computeRunningProcesses, ret := device.GetComputeRunningProcesses()
+		if ret != nvml.SUCCESS && ret != nvml.ERROR_NOT_FOUND {
+			processesChan <- result{nil, fmt.Errorf("failed to get compute running processes: %v", ret)}
+			return
+		}
+
 		processInfo := make(map[uint32]domain.GPUProcessInfo)
 
 		for _, process := range processUtilizationList {
@@ -100,7 +107,9 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 			return
 		}
 
-		for _, process := range graphicsRunningProcesses {
+		// Process both graphics and compute processes for memory usage
+		allProcesses := append(graphicsRunningProcesses, computeRunningProcesses...)
+		for _, process := range allProcesses {
 			info, exists := processInfo[process.Pid]
 			if exists {
 				info.UsedGpuMemory = (float64(process.UsedGpuMemory) / float64(memory.Total)) * 100
@@ -110,11 +119,12 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 					UsedGpuMemory: (float64(process.UsedGpuMemory) / float64(memory.Total)) * 100,
 				}
 			}
-			// log.Printf("Processing GPU process: PID=%d, PctUsed=%f, UsedGpuMemory=%v, TotalMemory=%d", process.Pid, info.UsedGpuMemory, process.UsedGpuMemory, memory.Total)
+			log.Printf("Processing GPU process: PID=%d, PctUsed=%f, UsedGpuMemory=%v, TotalMemory=%d", process.Pid, info.UsedGpuMemory, process.UsedGpuMemory, memory.Total)
 
 			processInfo[process.Pid] = info
 		}
 
+		log.Printf("Total GPU processes found: %d", len(processInfo))
 		processes := make([]domain.GPUProcessInfo, 0, len(processInfo))
 		for _, info := range processInfo {
 			proc, err := process.NewProcess(int32(info.Pid))
@@ -147,6 +157,7 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 			processes = append(processes, info)
 		}
 
+		log.Printf("Sending %d GPU processes to UI", len(processes))
 		processesChan <- result{processes, nil}
 	}()
 

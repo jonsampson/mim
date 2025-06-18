@@ -37,7 +37,17 @@
     *   NVIDIA drivers installed.
     *   NVML (NVIDIA Management Library) installed and accessible.
 
-## Installation & Building
+## Installation
+
+### Option 1: Install directly with Go
+
+```bash
+go install github.com/jonsampson/mim/cmd/mim@latest
+```
+
+This will install the `mim` binary to your `$GOPATH/bin` directory (typically `~/go/bin`). Make sure this directory is in your `PATH`.
+
+### Option 2: Build from source
 
 1.  **Clone the repository:**
     ```bash
@@ -56,7 +66,13 @@
 
 ## Running the Application
 
-Once built, you can run Mim directly from your terminal:
+If you installed with `go install`, simply run:
+
+```bash
+mim
+```
+
+If you built from source, run the executable:
 
 ```bash
 ./mim_binary
