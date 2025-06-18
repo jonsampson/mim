@@ -68,7 +68,7 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 			memoryChan <- result{nil, fmt.Errorf("failed to get memory info: %v", ret)}
 			return
 		}
-		memoryChan <- result{float64(memory.Used) / float64(memory.Total) * 100, nil}
+		memoryChan <- result{(float64(memory.Used) / float64(memory.Total)) * 100, nil}
 	}()
 
 	// Collect process information
@@ -94,16 +94,23 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 			}
 		}
 
+		memory, ret := device.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			memoryChan <- result{nil, fmt.Errorf("failed to get memory info: %v", ret)}
+			return
+		}
+
 		for _, process := range graphicsRunningProcesses {
 			info, exists := processInfo[process.Pid]
 			if exists {
-				info.UsedGpuMemory = process.UsedGpuMemory
+				info.UsedGpuMemory = (float64(process.UsedGpuMemory) / float64(memory.Total)) * 100
 			} else {
 				info = domain.GPUProcessInfo{
 					Pid:           process.Pid,
-					UsedGpuMemory: process.UsedGpuMemory,
+					UsedGpuMemory: (float64(process.UsedGpuMemory) / float64(memory.Total)) * 100,
 				}
 			}
+			// log.Printf("Processing GPU process: PID=%d, PctUsed=%f, UsedGpuMemory=%v, TotalMemory=%d", process.Pid, info.UsedGpuMemory, process.UsedGpuMemory, memory.Total)
 
 			processInfo[process.Pid] = info
 		}

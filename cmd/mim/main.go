@@ -90,8 +90,8 @@ func main() {
 	// Initialize the Bubble Tea program
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
+		p.Kill()
 		log.Printf("Alas, there's been an error: %v", err)
 		fmt.Printf("Alas, there's been an error: %v", err)
-		os.Exit(1)
 	}
 }

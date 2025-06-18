@@ -24,6 +24,6 @@ type GPUMetrics struct {
 type GPUProcessInfo struct {
 	Pid           uint32
 	SmUtil        uint32
-	UsedGpuMemory uint64
+	UsedGpuMemory float64
 	User          string
 }

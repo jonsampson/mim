@@ -56,6 +56,9 @@ func (bc *BaseCollector[T]) collectMetrics() {
 		case <-ticker.C:
 			metrics, err := bc.getMetricsFunc()
 			if err == nil {
+				if bc.stopped {
+					return
+				}
 				select {
 				case bc.metrics <- metrics:
 				case <-bc.stop:

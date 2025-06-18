@@ -121,11 +121,16 @@ func (pm *ProcessMonitor) Init() tea.Cmd {
 
 func (pm *ProcessMonitor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
 	pm.cpuTable, cmd = pm.cpuTable.Update(msg)
-	pm.memTable, _ = pm.memTable.Update(msg)
-	pm.gpuTable, _ = pm.gpuTable.Update(msg)
-	pm.gpuMemTable, _ = pm.gpuMemTable.Update(msg)
-	return pm, cmd
+	cmds = append(cmds, cmd)
+	pm.memTable, cmd = pm.memTable.Update(msg)
+	cmds = append(cmds, cmd)
+	pm.gpuTable, cmd = pm.gpuTable.Update(msg)
+	cmds = append(cmds, cmd)
+	pm.gpuMemTable, cmd = pm.gpuMemTable.Update(msg)
+	cmds = append(cmds, cmd)
+	return pm, tea.Batch(cmds...)
 }
 
 func (pm *ProcessMonitor) View() string {
@@ -195,7 +200,7 @@ func (pm *ProcessMonitor) UpdateProcesses(cpuProcesses []domain.CPUProcessInfo, 
 	sort.Slice(pm.gpuProcesses, func(i, j int) bool {
 		return pm.gpuProcesses[i].UsedGpuMemory > pm.gpuProcesses[j].UsedGpuMemory
 	})
-	pm.gpuMemTable.SetRows(pm.getGPURows(pm.gpuProcesses, pidToCommandForGPU, func(p domain.GPUProcessInfo) float64 { return float64(p.UsedGpuMemory) / (1024 * 1024) }))
+	pm.gpuMemTable.SetRows(pm.getGPURows(pm.gpuProcesses, pidToCommandForGPU, func(p domain.GPUProcessInfo) float64 { return p.UsedGpuMemory }))
 }
 
 func (pm *ProcessMonitor) getRows(processes []domain.CPUProcessInfo, getValue func(domain.CPUProcessInfo) float64) []table.Row {

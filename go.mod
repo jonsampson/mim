@@ -4,20 +4,18 @@ go 1.23.3
 
 require (
 	github.com/NimbleMarkets/ntcharts v0.3.1
+	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/stretchr/testify v1.9.0
 )
 
-require (
-	github.com/charmbracelet/bubbles v0.20.0 // indirect
-	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
-)
+require github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
 
 require (
 	github.com/NVIDIA/go-nvml v0.12.4-1
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/lipgloss v1.0.0 // indirect
+	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
