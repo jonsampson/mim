@@ -13,12 +13,16 @@ type CPUMemoryCollector struct {
 	*BaseCollector[domain.CPUMemoryMetrics]
 	lastProcessTimes map[int32]*cpu.TimesStat
 	lastCollectTime  time.Time
+	cpuCalculator    *domain.CPUCalculator
+	processFilter    *domain.ProcessFilter
 }
 
 func NewCPUMemoryCollector() *CPUMemoryCollector {
 	collector := &CPUMemoryCollector{
 		lastProcessTimes: make(map[int32]*cpu.TimesStat),
 		lastCollectTime:  time.Now(),
+		cpuCalculator:    domain.NewCPUCalculator(),
+		processFilter:    domain.NewProcessFilter(),
 	}
 	collector.BaseCollector = NewBaseCollector(collector.getMetrics)
 	return collector
@@ -92,21 +96,25 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 			// Store for next iteration
 			newProcessTimes[pid] = currentTimes
 			
-			currentCPUTime := currentTimes.User + currentTimes.System
-			
 			// Get process name for filtering
 			name, _ := proc.Name()
-			// Skip kernel threads
-			if len(name) > 0 && name[0] == '[' {
+			// Apply domain filtering rules
+			if !c.processFilter.ShouldIncludeProcess(name) {
 				continue
 			}
 			
-			// Calculate CPU percentage from delta (if we have previous data)
+			// Calculate CPU percentage using domain service
 			var cpuPercent float64
-			if lastTimes, exists := c.lastProcessTimes[pid]; exists && deltaTime > 0 {
-				lastCPUTime := lastTimes.User + lastTimes.System
-				cpuDelta := currentCPUTime - lastCPUTime
-				cpuPercent = (cpuDelta / deltaTime) * 100.0
+			if lastTimes, exists := c.lastProcessTimes[pid]; exists {
+				currentCPUTimes := domain.CPUTimes{
+					User:   currentTimes.User,
+					System: currentTimes.System,
+				}
+				lastCPUTimes := domain.CPUTimes{
+					User:   lastTimes.User,
+					System: lastTimes.System,
+				}
+				cpuPercent = c.cpuCalculator.CalculateCPUPercent(currentCPUTimes, lastCPUTimes, deltaTime)
 			}
 			
 			// Get memory percentage for all processes (needed for proper sorting)

@@ -14,10 +14,13 @@ import (
 
 type NvidiaGPUCollector struct {
 	*BaseCollector[domain.GPUMetrics]
+	gpuCalculator *domain.GPUCalculator
 }
 
 func NewNvidiaGPUCollector() *NvidiaGPUCollector {
-	collector := &NvidiaGPUCollector{}
+	collector := &NvidiaGPUCollector{
+		gpuCalculator: domain.NewGPUCalculator(),
+	}
 	collector.BaseCollector = NewBaseCollector(collector.getMetrics)
 	return collector
 }
@@ -69,7 +72,8 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 			memoryChan <- result{nil, fmt.Errorf("failed to get memory info: %v", ret)}
 			return
 		}
-		memoryChan <- result{(float64(memory.Used) / float64(memory.Total)) * 100, nil}
+		memoryPercent := c.gpuCalculator.CalculateMemoryPercent(memory.Used, memory.Total)
+		memoryChan <- result{memoryPercent, nil}
 	}()
 
 	// Collect process information
@@ -111,12 +115,13 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 		allProcesses := append(graphicsRunningProcesses, computeRunningProcesses...)
 		for _, process := range allProcesses {
 			info, exists := processInfo[process.Pid]
+			processMemoryPercent := c.gpuCalculator.CalculateProcessMemoryPercent(process.UsedGpuMemory, memory.Total)
 			if exists {
-				info.UsedGpuMemory = (float64(process.UsedGpuMemory) / float64(memory.Total)) * 100
+				info.UsedGpuMemory = processMemoryPercent
 			} else {
 				info = domain.GPUProcessInfo{
 					Pid:           process.Pid,
-					UsedGpuMemory: (float64(process.UsedGpuMemory) / float64(memory.Total)) * 100,
+					UsedGpuMemory: processMemoryPercent,
 				}
 			}
 			log.Printf("Processing GPU process: PID=%d, PctUsed=%f, UsedGpuMemory=%v, TotalMemory=%d", process.Pid, info.UsedGpuMemory, process.UsedGpuMemory, memory.Total)
