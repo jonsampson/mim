@@ -3,6 +3,7 @@ package tui
 import (
 	"testing"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/jonsampson/mim/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,6 +21,10 @@ func TestModelUpdate(t *testing.T) {
 	model := Model{
 		cpuMemoryCollector: mockCPUMemoryCollector,
 		gpuCollector:       mockGPUCollector,
+		cpuCombinedView:    NewCPUCombinedView(),
+		cpuGPUUsageGraph:   NewCPUGPUUsageGraph(),
+		memoryUsageGraph:   NewMemoryUsageGraph(),
+		processMonitor:     NewProcessMonitor(80),
 	}
 	t.Run("CPU and Memory metrics update", func(t *testing.T) {
 		cpuMemoryMetrics := domain.CPUMemoryMetrics{
@@ -63,11 +68,19 @@ func TestModelView(t *testing.T) {
         memoryUsage:     50.0,
         gpuUsage:        70.0,
         gpuMemoryUsage:  80.0,
+        cpuCombinedView: NewCPUCombinedView(),
+        cpuGPUUsageGraph: NewCPUGPUUsageGraph(),
+        memoryUsageGraph: NewMemoryUsageGraph(),
+        processMonitor:   NewProcessMonitor(80),
+        viewport:         viewport.New(80, 50),
     }
 
+    // Set up the viewport with the rendered content
+    model.viewport.SetContent(model.renderContent())
+    
     view := model.View()
 
-    assert.Contains(t, view, "CPU Usage")
+    assert.Contains(t, view, "CPU Usage: 15.00%")
     assert.Contains(t, view, "Memory Usage: 50.00%")
     assert.Contains(t, view, "GPU Usage: 70.00%")
     assert.Contains(t, view, "GPU Memory Usage: 80.00%")

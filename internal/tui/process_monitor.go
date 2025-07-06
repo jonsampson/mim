@@ -29,10 +29,11 @@ type ProcessMonitor struct {
 }
 
 const (
-	symbolWidth = 6
-	pidWidth    = 12
-	userWidth   = 12
-	metricWidth = 12
+	symbolWidth    = 6
+	pidWidth       = 12
+	userWidth      = 12
+	metricWidth    = 12
+	minCommandWidth = 20 // Minimum viable command column width
 )
 
 func NewProcessMonitor(width int) *ProcessMonitor {
@@ -160,10 +161,22 @@ func (pm *ProcessMonitor) View() string {
 		pm.gpuMemTable.View(),
 	))
 
-	topRow := lipgloss.JoinHorizontal(lipgloss.Top, padding(cpuView), memView)
-	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, padding(gpuView), gpuMemView)
+	// Calculate minimum width needed for 2x2 layout
+	minTableWidth := symbolWidth + pidWidth + userWidth + metricWidth + minCommandWidth
+	paddingWidth := 6 // Account for borders and padding between tables
+	min2x2Width := 2*minTableWidth + paddingWidth
 
-	view := lipgloss.JoinVertical(lipgloss.Left, topRow, bottomRow)
+	// Use responsive layout based on available width
+	var view string
+	if pm.width >= min2x2Width {
+		// Wide screen: use 2x2 grid
+		topRow := lipgloss.JoinHorizontal(lipgloss.Top, padding(cpuView), memView)
+		bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, padding(gpuView), gpuMemView)
+		view = lipgloss.JoinVertical(lipgloss.Left, topRow, bottomRow)
+	} else {
+		// Narrow screen: stack vertically
+		view = lipgloss.JoinVertical(lipgloss.Left, cpuView, memView, gpuView, gpuMemView)
+	}
 
 	return lipgloss.NewStyle().Border(lipgloss.HiddenBorder()).Render(view)
 }
@@ -331,7 +344,20 @@ func min(a, b int) int {
 
 func (pm *ProcessMonitor) Resize(width int) {
 	pm.width = width
-	tableWidth := width/2 - 4 // Adjusted to account for borders
+	
+	// Calculate minimum width needed for 2x2 layout
+	minTableWidth := symbolWidth + pidWidth + userWidth + metricWidth + minCommandWidth
+	paddingWidth := 6 // Account for borders and padding between tables
+	min2x2Width := 2*minTableWidth + paddingWidth
+
+	var tableWidth int
+	if width >= min2x2Width {
+		// Wide screen: use half width for 2x2 grid
+		tableWidth = width/2 - 4
+	} else {
+		// Narrow screen: use full width for vertical stack
+		tableWidth = width - 4
+	}
 
 	updateTable := func(t *table.Model) {
 		*t = pm.createTableWithWidth(tableWidth)
