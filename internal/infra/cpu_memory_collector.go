@@ -72,22 +72,19 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 		currentTime := time.Now()
 		deltaTime := currentTime.Sub(c.lastCollectTime).Seconds()
 		
-		// Get all PIDs
-		pids, err := process.Pids()
+		// Get all processes (more efficient than Pids() + individual NewProcess calls)
+		processes, err := process.Processes()
 		if err != nil {
 			processesChan <- result{nil, err}
 			return
 		}
 		
 		// Collect CPU times and memory for ALL processes
-		allProcessInfos := make([]domain.CPUProcessInfo, 0, len(pids))
+		allProcessInfos := make([]domain.CPUProcessInfo, 0, len(processes))
 		newProcessTimes := make(map[int32]*cpu.TimesStat)
 		
-		for _, pid := range pids {
-			proc, err := process.NewProcess(pid)
-			if err != nil {
-				continue
-			}
+		for _, proc := range processes {
+			pid := proc.Pid
 			
 			// Get current CPU times (single /proc read per process)
 			currentTimes, err := proc.Times()
