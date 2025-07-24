@@ -1,7 +1,7 @@
 package infra
 
 import (
-	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -66,7 +66,9 @@ func (bc *BaseCollector[T]) collectMetrics() {
 				}
 			}
 			if err != nil {
-				panic(fmt.Errorf("error collecting metrics: %v", err))
+				log.Printf("Error collecting metrics, skipping cycle: %v", err)
+				// Continue to next collection cycle instead of crashing
+				continue
 			}
 		case <-bc.stop:
 			return
