@@ -3,23 +3,21 @@ package infra
 import (
 	"fmt"
 	"log"
-	"os"
-	"strconv"
-	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/jonsampson/mim/internal/domain"
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 type NvidiaGPUCollector struct {
 	*BaseCollector[domain.GPUMetrics]
 	gpuCalculator *domain.GPUCalculator
+	usernameCache *UsernameCache
 }
 
 func NewNvidiaGPUCollector() *NvidiaGPUCollector {
 	collector := &NvidiaGPUCollector{
 		gpuCalculator: domain.NewGPUCalculator(),
+		usernameCache: NewUsernameCache(),
 	}
 	collector.BaseCollector = NewBaseCollector(collector.getMetrics)
 	return collector
@@ -132,33 +130,8 @@ func (c *NvidiaGPUCollector) getMetrics() (domain.GPUMetrics, error) {
 		log.Printf("Total GPU processes found: %d", len(processInfo))
 		processes := make([]domain.GPUProcessInfo, 0, len(processInfo))
 		for _, info := range processInfo {
-			proc, err := process.NewProcess(int32(info.Pid))
-			if err != nil {
-				// Process might have terminated, log or handle as needed
-				// For now, we'll skip adding user info if process lookup fails
-				processes = append(processes, info)
-				continue
-			}
-			username, err := proc.Username()
-			if err != nil {
-				if strings.Contains(err.Error(), "unknown userid") {
-					uids, uidsErr := proc.Uids()
-					if uidsErr != nil || len(uids) == 0 {
-						username = ""
-					} else {
-						username = strconv.FormatInt(int64(uids[0]), 10)
-					}
-				} else if !os.IsNotExist(err) {
-					// Log non-critical errors or handle them as needed, but don't stop the process collection.
-					// For now, set username to empty for these errors as well.
-					// Consider logging: fmt.Printf("Error getting username for PID %d: %v. Setting to empty.\n", info.Pid, err)
-					username = ""
-				} else {
-					// If the process doesn't exist anymore (os.ErrNotExist), set username to empty.
-					username = ""
-				}
-			}
-			info.User = username
+			// Get username using cache (handles all error cases with timeout protection)
+			info.User = c.usernameCache.GetUsername(info.Pid)
 			processes = append(processes, info)
 		}
 

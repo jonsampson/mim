@@ -9,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jonsampson/mim/internal/domain"
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 type ProcessMonitor struct {
@@ -224,18 +223,10 @@ func (pm *ProcessMonitor) getRows(processes []domain.CPUProcessInfo, getValue fu
 		p := processes[i]
 		sym, _ := pm.symbolAllocator.AccessPID(int(p.Pid))
 		
-		// Get username if not already populated (expensive operation)
+		// Username is now pre-populated by the collector
 		user := p.User
 		if user == "" {
-			if proc, err := process.NewProcess(int32(p.Pid)); err == nil {
-				if username, err := proc.Username(); err == nil {
-					user = username
-				} else {
-					user = "?"
-				}
-			} else {
-				user = "?"
-			}
+			user = "?" // Fallback for any edge cases
 		}
 		
 		pm.rowBuffer = append(pm.rowBuffer, table.Row{

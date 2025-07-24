@@ -15,6 +15,7 @@ type CPUMemoryCollector struct {
 	lastCollectTime  time.Time
 	cpuCalculator    *domain.CPUCalculator
 	processFilter    *domain.ProcessFilter
+	usernameCache    *UsernameCache
 }
 
 func NewCPUMemoryCollector() *CPUMemoryCollector {
@@ -23,6 +24,7 @@ func NewCPUMemoryCollector() *CPUMemoryCollector {
 		lastCollectTime:  time.Now(),
 		cpuCalculator:    domain.NewCPUCalculator(),
 		processFilter:    domain.NewProcessFilter(),
+		usernameCache:    NewUsernameCache(),
 	}
 	collector.BaseCollector = NewBaseCollector(collector.getMetrics)
 	return collector
@@ -123,13 +125,15 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 				continue
 			}
 			
-			// No username lookup here - will be done by ProcessMonitor for displayed processes only
+			// Get username using cache (fast after first few lookups due to UID deduplication)
+			username := c.usernameCache.GetUsername(uint32(pid))
+			
 			allProcessInfos = append(allProcessInfos, domain.CPUProcessInfo{
 				Pid:           uint32(pid),
 				CPUPercent:    cpuPercent,
 				MemoryPercent: float64(memPercent),
 				Command:       name,
-				User:          "", // Will be filled in by ProcessMonitor for top processes
+				User:          username,
 			})
 		}
 		
