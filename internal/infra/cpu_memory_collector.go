@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/jonsampson/mim/internal/domain"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type CPUMemoryCollector struct {
@@ -41,13 +41,13 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 
 	// Collect per-core CPU usage
 	go func() {
-		cpuUsagePerCore, err := cpu.Percent(time.Second, true)
+		cpuUsagePerCore, err := cpu.Percent(0, true) // Non-blocking using cached measurements
 		perCoreChan <- result{cpuUsagePerCore, err}
 	}()
 
 	// Collect total CPU usage
 	go func() {
-		cpuUsageTotal, err := cpu.Percent(time.Second, false)
+		cpuUsageTotal, err := cpu.Percent(0, false) // Non-blocking using cached measurements
 		if err != nil {
 			totalChan <- result{nil, err}
 		} else {

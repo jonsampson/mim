@@ -41,23 +41,3 @@ func (c *CPUCalculator) CalculateCPUPercent(
 
 	return (cpuDelta / deltaTimeSeconds) * 100.0
 }
-
-// CalculateOverallCPUPercent calculates total CPU usage across all cores
-// Takes per-core usage percentages and returns weighted average
-func (c *CPUCalculator) CalculateOverallCPUPercent(coreUsages []float64) float64 {
-	if len(coreUsages) == 0 {
-		return 0
-	}
-
-	var total float64
-	for _, usage := range coreUsages {
-		total += usage
-	}
-
-	return total / float64(len(coreUsages))
-}
-
-// ValidateCPUPercent validates that a CPU percentage is within expected bounds
-func (c *CPUCalculator) ValidateCPUPercent(percent float64) bool {
-	return percent >= 0 && percent <= 100
-}
