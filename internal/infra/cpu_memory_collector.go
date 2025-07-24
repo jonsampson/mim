@@ -16,15 +16,18 @@ type CPUMemoryCollector struct {
 	cpuCalculator    *domain.CPUCalculator
 	processFilter    *domain.ProcessFilter
 	usernameCache    *UsernameCache
+	// Pre-allocated buffers to reduce GC pressure
+	processInfoBuffer []domain.CPUProcessInfo
 }
 
 func NewCPUMemoryCollector() *CPUMemoryCollector {
 	collector := &CPUMemoryCollector{
-		lastProcessTimes: make(map[int32]*cpu.TimesStat),
-		lastCollectTime:  time.Now(),
-		cpuCalculator:    domain.NewCPUCalculator(),
-		processFilter:    domain.NewProcessFilter(),
-		usernameCache:    NewUsernameCache(),
+		lastProcessTimes:  make(map[int32]*cpu.TimesStat),
+		lastCollectTime:   time.Now(),
+		cpuCalculator:     domain.NewCPUCalculator(),
+		processFilter:     domain.NewProcessFilter(),
+		usernameCache:     NewUsernameCache(),
+		processInfoBuffer: make([]domain.CPUProcessInfo, 0, 1000), // Pre-allocate for ~1000 processes
 	}
 	collector.BaseCollector = NewBaseCollector(collector.getMetrics)
 	return collector
@@ -79,8 +82,8 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 			return
 		}
 		
-		// Collect CPU times and memory for ALL processes
-		allProcessInfos := make([]domain.CPUProcessInfo, 0, len(processes))
+		// Reuse pre-allocated buffer to reduce GC pressure
+		c.processInfoBuffer = c.processInfoBuffer[:0] // Reset length but keep capacity
 		newProcessTimes := make(map[int32]*cpu.TimesStat)
 		
 		for _, proc := range processes {
@@ -125,7 +128,7 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 			// Get username using cache (fast after first few lookups due to UID deduplication)
 			username := c.usernameCache.GetUsername(uint32(pid))
 			
-			allProcessInfos = append(allProcessInfos, domain.CPUProcessInfo{
+			c.processInfoBuffer = append(c.processInfoBuffer, domain.CPUProcessInfo{
 				Pid:           uint32(pid),
 				CPUPercent:    cpuPercent,
 				MemoryPercent: float64(memPercent),
@@ -138,7 +141,7 @@ func (c *CPUMemoryCollector) getMetrics() (domain.CPUMemoryMetrics, error) {
 		c.lastProcessTimes = newProcessTimes
 		c.lastCollectTime = currentTime
 		
-		processesChan <- result{allProcessInfos, nil}
+		processesChan <- result{c.processInfoBuffer, nil}
 	}()
 
 	// Collect results and handle potential errors
